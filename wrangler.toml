@@ -1,0 +1,9 @@
+# Cloudflare Pages project config (used by `wrangler pages deploy` / `wrangler pages dev`).
+# NOTE: when this file is present, Wrangler treats it as the source of truth for bindings.
+name = "millirons-detailing"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-10-01"
+
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "millirons-detailing-media"
