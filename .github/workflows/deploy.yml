@@ -1,4 +1,4 @@
-name: Deploy to Cloudflare Pages
+name: Deploy to Cloudflare Pages (preview)
 
 on:
   push:
@@ -18,8 +18,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx vite build
-      - name: Deploy to Cloudflare Pages
-        run: npx wrangler pages deploy dist --project-name=millirons-detailing --branch=main
+      - name: Deploy to Cloudflare Pages (preview)
+        run: npx wrangler pages deploy dist --project-name=millirons-detailing --branch=preview
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: d1c361c54e7fc91c05db264186fa1eaf
