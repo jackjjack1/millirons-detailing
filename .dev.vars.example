@@ -1,0 +1,6 @@
+# Copy to .dev.vars for `wrangler pages dev`. Do not commit .dev.vars.
+# Generate real values with: openssl rand -base64 32
+SESSION_SECRET=replace-with-at-least-32-characters
+ADMIN_SETUP_CODE=replace-with-the-one-time-admin-setup-code
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
