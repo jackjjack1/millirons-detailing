@@ -27,7 +27,7 @@ export function VanProof({value:v,onChange}){const[err,setErr]=useState('');cons
 // ── Self-apply (Become a Detailer) ──
 export function Apply(){const[f,setF]=useState({name:'',email:'',phone:'',city:'',years:'',services:'',bio:'',pw:'',pw2:''});const[van,setVan]=useState(blankVan);const[step,setStep]=useState(0);const[err,setErr]=useState('');const[done,setDone]=useState(false)
  const u=(k,v)=>setF(o=>({...o,[k]:v}))
- const next=e=>{e.preventDefault();setErr('');if(!f.name||!/^\S+@\S+\.\S+$/.test(f.email)||!f.phone||!f.city)return setErr('Fill in name, a valid email, phone and city.');if(LS('md_accounts',[]).some(a=>a.email===f.email.toLowerCase())||['marcus@demo.test','admin@demo.test','customer@demo.test'].includes(f.email.toLowerCase()))return setErr('An account with that email already exists. Sign in instead.');if(f.pw.length<8||f.pw!==f.pw2)return setErr('Password must be 8+ characters and match.');setStep(1)}
+ const next=e=>{e.preventDefault();setErr('');if(!f.name||!/^\S+@\S+\.\S+$/.test(f.email)||!f.phone||!f.city)return setErr('Fill in name, a valid email, phone and city.');if(LS('md_accounts',[]).some(a=>a.email===f.email.toLowerCase()))return setErr('An account with that email already exists. Sign in instead.');if(f.pw.length<8||f.pw!==f.pw2)return setErr('Password must be 8+ characters and match.');setStep(1)}
  const[sending,setSending]=useState('')
  const submit=async e=>{e.preventDefault();if(!vanValid(van))return setErr('Add at least one vehicle photo and the year, make, model and plate.')
   const appId='APP-'+Date.now().toString(36).toUpperCase();setSending('Uploading documents…');const up=await uploadDocs(appId,van);setSending('');const vanU=up.van

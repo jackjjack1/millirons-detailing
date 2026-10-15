@@ -10,12 +10,7 @@ const STEPS=['Booked','Confirmed','Detailer en route','In progress','Completed']
 const vehLabel=b=>b.make?`${b.year||''} ${b.make} ${b.model}`.trim():vehicles.find(v=>v.id===b.vehicle)?.name||'Vehicle on file'
 const ADMIN={name:'Millirons Support',role:'admin'}
 // ── Messages (per-device localStorage, keyed by booking id) ──
-function seedMsgs(){if(LS('md_msgs',null))return;const d=(h)=>new Date(Date.now()-h*3600e3).toISOString()
- SET('md_msgs',{'MD-SAMPLE3':[
-  {id:'m1',ts:d(26),from:{name:'Millirons Support',role:'admin'},text:'Hi Jordan! Your Exterior Detail is confirmed. Ana will be your detailer.'},
-  {id:'m2',ts:d(25.5),from:{name:'Jordan M',role:'customer',email:'customer@demo.test'},text:'Great, thanks! Is street parking OK? My driveway is tight.'},
-  {id:'m3',ts:d(3),from:{name:'Ana Torres',role:'employee',detailer:'ana'},text:'Street parking works. I’ll bring the waterless kit — see you at 11!'}],
-  'MD-SAMPLE1':[{id:'m4',ts:d(5),from:{name:'Sample Customer',role:'customer',email:'customer@demo.test'},text:'Can you also check the rear seats? Dog hair 🐶'},{id:'m5',ts:d(1),from:{name:'Marcus Reed',role:'employee',detailer:'marcus'},text:'Will do — adding extra time for pet hair.'}]})}
+function seedMsgs(){if(LS('md_msgs',null)===null){SET('md_msgs',{})}else{const cur=LS('md_msgs',{});delete cur['MD-SAMPLE3'];delete cur['MD-SAMPLE1'];SET('md_msgs',cur)}}
 export const getMsgs=id=>{seedMsgs();return LS('md_msgs',{})[id]||[]}
 const putMsg=(id,m)=>{const all=LS('md_msgs',{});all[id]=[...(all[id]||[]),m];SET('md_msgs',all)}
 const readKey=u=>`md_read_${u.email||u.name}`
