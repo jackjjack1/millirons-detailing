@@ -1,12 +1,13 @@
 // Browser client for /api/auth and /api/hire. The session cookie is HttpOnly, so this
-// module never reads or writes the password or the session token.
+// module never reads or writes the password or the session token. credentials:
+// 'include' lets the AI Studio preview send the cross-site session cookie.
+import {apiFetch} from './apiOrigin.js'
 
 async function api(path, {method = 'GET', body} = {}) {
   let response
   try {
-    response = await fetch(path, {
+    response = await apiFetch(path, {
       method,
-      credentials: 'same-origin',
       cache: 'no-store',
       headers: body ? {'content-type': 'application/json'} : undefined,
       body: body ? JSON.stringify(body) : undefined,
@@ -33,7 +34,7 @@ export const authLogout = () => api('/api/auth/logout', {method: 'POST', body: {
 export async function authMe() {
   let response
   try {
-    response = await fetch('/api/auth/me', {credentials: 'same-origin', cache: 'no-store'})
+    response = await apiFetch('/api/auth/me', {cache: 'no-store'})
   } catch {
     return null
   }
