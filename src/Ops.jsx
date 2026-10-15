@@ -8,13 +8,13 @@ export function audit(user,action,detail){SET('md_audit',[{id:uid('A'),ts:now(),
 export function csv(name,rows){if(!rows.length)return;const cols=Object.keys(rows[0]);const esc=v=>`"${String(v??'').replaceAll('"','""')}"`
  const blob=new Blob([[cols.join(','),...rows.map(r=>cols.map(c=>esc(r[c])).join(','))].join('\n')],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href)}
 const SEED_INV=[
- {id:'INV-1',name:'pH-neutral car shampoo',type:'Chemical',qty:3,unit:'gal',min:4,location:'Van stock'},
- {id:'INV-2',name:'Ceramic spray sealant',type:'Chemical',qty:6,unit:'bottle',min:4,location:'Van stock'},
- {id:'INV-3',name:'Iron decon remover',type:'Chemical',qty:1,unit:'gal',min:2,location:'Van stock'},
- {id:'INV-4',name:'Microfiber towels 16"',type:'Supply',qty:40,unit:'each',min:60,location:'Van stock'},
- {id:'INV-5',name:'Clay bars',type:'Supply',qty:12,unit:'each',min:6,location:'Van stock'},
- {id:'INV-6',name:'Interior detailer',type:'Chemical',qty:5,unit:'bottle',min:3,location:'Van stock'},
- {id:'INV-7',name:'Tire dressing',type:'Chemical',qty:2,unit:'gal',min:2,location:'Van stock'},
+ {id:'INV-1',name:'pH-neutral car shampoo',type:'Chemical',qty:3,unit:'gal',min:4,location:'Van stock',url:''},
+ {id:'INV-2',name:'Ceramic spray sealant',type:'Chemical',qty:6,unit:'bottle',min:4,location:'Van stock',url:''},
+ {id:'INV-3',name:'Iron decon remover',type:'Chemical',qty:1,unit:'gal',min:2,location:'Van stock',url:''},
+ {id:'INV-4',name:'Microfiber towels 16"',type:'Supply',qty:40,unit:'each',min:60,location:'Van stock',url:''},
+ {id:'INV-5',name:'Clay bars',type:'Supply',qty:12,unit:'each',min:6,location:'Van stock',url:''},
+ {id:'INV-6',name:'Interior detailer',type:'Chemical',qty:5,unit:'bottle',min:3,location:'Van stock',url:''},
+ {id:'INV-7',name:'Tire dressing',type:'Chemical',qty:2,unit:'gal',min:2,location:'Van stock',url:''},
 ]
 const SEED_SHOP=[
  {id:'SH-1',name:'Dual-action polisher (15mm)',cat:'Tool',par:3,onHand:3,location:'Bay 1 · Cage',condition:'good'},
@@ -34,8 +34,10 @@ const SEED_SHOP=[
  {id:'SH-15',name:'Pressure washer nozzle set',cat:'Part',par:4,onHand:4,location:'Bin P3',condition:'good'},
  {id:'SH-16',name:'Headlight restoration kits',cat:'Part',par:8,onHand:8,location:'Shelf A3',condition:'good'},
 ]
+const cleanUrl=u=>{const s=String(u||'').trim();if(!s)return'';const w=/^https?:\/\//i.test(s)?s:'https://'+s;try{const p=new URL(w);return(p.protocol==='http:'||p.protocol==='https:')&&p.hostname.includes('.')?p.href:''}catch{return''}}
+const hostOf=u=>{try{return new URL(u).hostname.replace(/^www\./i,'')}catch{return'Product link'}}
 const ld=(k,seed)=>{let v=LS(k,null);if(!v){v=seed;SET(k,v)}return v}
-export const getInv=()=>ld('md_inventory',SEED_INV)
+export const getInv=()=>ld('md_inventory',SEED_INV).map(it=>({url:'',...it}))
 const Table=({cols,rows,cls})=><div className="tbl"><table className={cls}><thead><tr>{cols.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{rows.length?rows:<tr><td colSpan={cols.length} className="muted">Nothing yet.</td></tr>}</tbody></table></div>
 export const Badge=({s})=><span className={'badge b-'+String(s).toLowerCase().replace(/\s+/g,'-')}>{s}</span>
 const STATUSES=['Requested','Approved','Ordered','Received','Denied'], NEXT={Requested:['Approved','Denied'],Approved:['Ordered','Denied'],Ordered:['Received'],Received:[],Denied:[]}
@@ -43,51 +45,83 @@ const LABEL={Approved:'Approve',Denied:'Deny',Ordered:'Mark ordered',Received:'M
 const TYPES=['Chemical','Supply','Part','Tool','Equipment','Other'], UNITS=['each','bottle','gal','qt','box','pack','case','set'], URG=['Low','Normal','High','Urgent']
 
 export function Inventory({user,onReorder}){const[inv,setInv]=useState(getInv);const save=v=>{setInv(v);SET('md_inventory',v)}
+ const blankP={id:'',name:'',type:'Chemical',qty:1,unit:'each',min:2,location:'Van stock',url:''}
+ const[showAdd,setShowAdd]=useState(false);const[f,setF]=useState(blankP);const[err,setErr]=useState('')
+ const u=(k,v)=>setF(o=>({...o,[k]:v}))
  const adj=(it,d)=>{const n=Math.max(0,it.qty+d);save(inv.map(x=>x.id===it.id?{...x,qty:n}:x));audit(user,'Inventory adjusted',`${it.name}: ${it.qty} → ${n} ${it.unit}`)}
+ const startNew=()=>{setErr('');setF(blankP);setShowAdd(true)}
+ const startEdit=it=>{setErr('');setF({id:it.id,name:it.name,type:it.type,qty:it.qty,unit:it.unit,min:it.min,location:it.location||'Van stock',url:it.url||''});setShowAdd(true)}
+ const cancel=()=>{setShowAdd(false);setF(blankP);setErr('')}
+ const saveProd=e=>{e.preventDefault();setErr('');const name=f.name.trim();if(!name)return setErr('Enter a product name.')
+  const rawUrl=String(f.url||'').trim(),url=rawUrl?cleanUrl(rawUrl):''
+  if(rawUrl&&!url)return setErr('Enter a valid product purchase URL (e.g. https://...).')
+  const item={id:f.id||uid('INV'),name,type:f.type,qty:Math.max(0,Number(f.qty)||0),unit:f.unit,min:Math.max(0,Number(f.min)||0),location:f.location.trim()||'Van stock',url}
+  if(f.id){save(inv.map(x=>x.id===f.id?item:x));audit(user,'Product updated',`${item.name} (${item.qty} ${item.unit})${url?' · '+url:''}`)}
+  else{save([item,...inv]);audit(user,'Product added',`${item.name} (${item.qty} ${item.unit})${url?' · '+url:''}`)}
+  cancel()}
+ const removeProd=it=>{save(inv.filter(x=>x.id!==it.id));audit(user,'Product removed',it.name);if(f.id===it.id)cancel()}
  const low=inv.filter(i=>i.qty<=i.min)
- return <><div className="toolbar"><p className="muted">{inv.length} items · <b>{low.length} low stock</b></p><button className="link" onClick={()=>csv('inventory.csv',inv)}>Export CSV</button></div>
- <Table cols={['Item','Type','On hand','Min','Location','']} rows={inv.map(i=><tr key={i.id} className={i.qty<=i.min?'lowrow':''}><td><b>{i.name}</b>{i.qty<=i.min&&<><br/><small>Low stock</small></>}</td><td>{i.type}</td><td className="nowrap"><button className="qbtn" onClick={()=>adj(i,-1)}>−</button> {i.qty} {i.unit} <button className="qbtn" onClick={()=>adj(i,1)}>+</button></td><td>{i.min}</td><td>{i.location}</td><td>{i.qty<=i.min&&<button className="pill sm" onClick={()=>onReorder(i)}>Reorder</button>}</td></tr>)}/></>}
+ return <>{showAdd&&<form className="panel opsform" onSubmit={saveProd}><h3>{f.id?'Edit product':'Add product'}</h3>
+  <div className="two">
+   <label>Product name<input value={f.name} onChange={e=>u('name',e.target.value)} placeholder="e.g. Griot’s Garage Ceramic 3-in-1 Wax" required/></label>
+   <label>Direct purchase link<input type="url" inputMode="url" value={f.url} onChange={e=>u('url',e.target.value)} placeholder="https://www.amazon.com/dp/..."/></label>
+   <label>Type<select value={f.type} onChange={e=>u('type',e.target.value)}>{TYPES.map(t=><option key={t}>{t}</option>)}</select></label>
+   <label>Unit<select value={f.unit} onChange={e=>u('unit',e.target.value)}>{UNITS.map(t=><option key={t}>{t}</option>)}</select></label>
+   <label>On hand qty<input type="number" min="0" value={f.qty} onChange={e=>u('qty',e.target.value)}/></label>
+   <label>Min stock alert<input type="number" min="0" value={f.min} onChange={e=>u('min',e.target.value)}/></label>
+   <label>Location<input value={f.location} onChange={e=>u('location',e.target.value)} placeholder="Van stock"/></label>
+  </div>
+  {err&&<p className="err">{err}</p>}
+  <div className="grow"><button className="pill">{f.id?'Save changes':'Add product'}</button><button type="button" className="link" onClick={cancel}>Cancel</button>{f.id&&<button type="button" className="link danger" onClick={()=>removeProd(f)}>Remove product</button>}</div>
+ </form>}
+ <div className="toolbar"><p className="muted">{inv.length} items · <b>{low.length} low stock</b></p><div className="grow" style={{marginTop:0}}><button type="button" className="pill sm" onClick={startNew}>+ Add product</button><button className="link" style={{marginRight:0}} onClick={()=>csv('inventory.csv',inv)}>Export CSV</button></div></div>
+ <Table cols={['Item','Type','On hand','Min','Location','Purchase','']} rows={inv.map(i=><tr key={i.id} className={i.qty<=i.min?'lowrow':''}><td><b>{i.name}</b>{i.qty<=i.min&&<><br/><small>Low stock</small></>}<br/>{i.url?<a className="link tiny" href={i.url} target="_blank" rel="noopener noreferrer">Buy on {hostOf(i.url)} ↗</a>:<button type="button" className="link tiny muted" onClick={()=>startEdit(i)}>+ Add link</button>}</td><td>{i.type}</td><td className="nowrap"><button className="qbtn" onClick={()=>adj(i,-1)}>−</button> {i.qty} {i.unit} <button className="qbtn" onClick={()=>adj(i,1)}>+</button></td><td>{i.min}</td><td>{i.location}</td><td className="nowrap">{i.url?<a className="pill sm light-b" href={i.url} target="_blank" rel="noopener noreferrer">Buy ↗</a>:<button type="button" className="link tiny" onClick={()=>startEdit(i)}>+ Add link</button>}</td><td><div className="acts">{i.qty<=i.min&&<button className="pill sm" onClick={()=>onReorder(i)}>Reorder</button>}<button type="button" className="link" onClick={()=>startEdit(i)}>Edit</button></div></td></tr>)}/></>}
 
 export function OrderForm({user,prefill,onDone}){const inv=getInv()
- const blank={itemId:'',item:'',type:'Chemical',qty:1,unit:'each',supplier:'',cost:'',urgency:'Normal',note:'',date:new Date().toISOString().slice(0,10)}
- const[f,setF]=useState(()=>prefill?{...blank,itemId:prefill.id,item:prefill.name,type:prefill.type,unit:prefill.unit,qty:Math.max(1,prefill.min*2-prefill.qty),urgency:prefill.qty===0?'Urgent':'High',note:`Reorder — on hand ${prefill.qty}, min ${prefill.min}`}:blank)
+ const blank={itemId:'',item:'',type:'Chemical',qty:1,unit:'each',supplier:'',url:'',cost:'',urgency:'Normal',note:'',date:new Date().toISOString().slice(0,10)}
+ const[f,setF]=useState(()=>prefill?{...blank,itemId:prefill.id,item:prefill.name,type:prefill.type,unit:prefill.unit,url:prefill.url||'',qty:Math.max(1,prefill.min*2-prefill.qty),urgency:prefill.qty===0?'Urgent':'High',note:`Reorder — on hand ${prefill.qty}, min ${prefill.min}`}:blank)
  const u=(k,v)=>setF(o=>({...o,[k]:v}))
- const pick=id=>{if(id==='__new'||id==='')return setF(o=>({...o,itemId:id,item:''}));const i=inv.find(x=>x.id===id);setF(o=>({...o,itemId:id,item:i.name,type:i.type,unit:i.unit}))}
- const submit=e=>{e.preventDefault();if(!f.item||f.qty<1)return;const o={id:uid('PO'),...f,qty:Number(f.qty),cost:f.cost===''?'':Number(f.cost),itemId:f.itemId==='__new'?'':f.itemId,requestedBy:user.name,requestedRole:user.role,created:now(),status:'Requested',history:[{status:'Requested',by:user.name,ts:now()}]}
+ const pick=id=>{if(id==='__new'||id==='')return setF(o=>({...o,itemId:id,item:'',url:''}));const i=inv.find(x=>x.id===id);setF(o=>({...o,itemId:id,item:i.name,type:i.type,unit:i.unit,url:i.url||''}))}
+ const submit=e=>{e.preventDefault();if(!f.item||f.qty<1)return;const url=cleanUrl(f.url);const o={id:uid('PO'),...f,url,qty:Number(f.qty),cost:f.cost===''?'':Number(f.cost),itemId:f.itemId==='__new'?'':f.itemId,requestedBy:user.name,requestedRole:user.role,created:now(),status:'Requested',history:[{status:'Requested',by:user.name,ts:now()}]}
+  if(o.itemId&&url){const cur=getInv();SET('md_inventory',cur.map(x=>x.id===o.itemId&&!x.url?{...x,url}:x))}
   SET('md_orders',[o,...LS('md_orders',[])]);audit(user,'Order requested',`${o.id}: ${o.qty} ${o.unit} ${o.item} (${o.urgency})`);setF(blank);onDone?.(o)}
  const isNew=f.itemId==='__new'||f.itemId===''
+ const cleanHref=cleanUrl(f.url)
  return <form className="panel opsform" onSubmit={submit}><h3>{prefill?'Reorder low-stock item':'Request supplies'}</h3>
   <div className="two"><label>Item<select value={f.itemId} onChange={e=>pick(e.target.value)}><option value="">Choose from inventory…</option>{inv.map(i=><option key={i.id} value={i.id}>{i.name} ({i.qty} {i.unit})</option>)}<option value="__new">+ New item…</option></select></label>
   {isNew&&<label>New item name<input value={f.item} onChange={e=>u('item',e.target.value)} placeholder="e.g. Leather conditioner"/></label>}
   <label>Type<select value={f.type} onChange={e=>u('type',e.target.value)}>{TYPES.map(t=><option key={t}>{t}</option>)}</select></label>
   <label>Quantity<input type="number" min="1" value={f.qty} onChange={e=>u('qty',e.target.value)}/></label>
   <label>Unit<select value={f.unit} onChange={e=>u('unit',e.target.value)}>{UNITS.map(t=><option key={t}>{t}</option>)}</select></label>
+  <label>Direct purchase link (optional)<input type="url" inputMode="url" value={f.url} onChange={e=>u('url',e.target.value)} placeholder="https://..."/></label>
   <label>Supplier (optional)<input value={f.supplier} onChange={e=>u('supplier',e.target.value)} placeholder="e.g. Local supply house"/></label>
   <label>Est. cost $ (optional)<input type="number" min="0" step="0.01" value={f.cost} onChange={e=>u('cost',e.target.value)}/></label>
   <label>Urgency<select value={f.urgency} onChange={e=>u('urgency',e.target.value)}>{URG.map(t=><option key={t}>{t}</option>)}</select></label>
   <label>Date needed<input type="date" value={f.date} onChange={e=>u('date',e.target.value)}/></label>
   <label>Requested by<input value={user.name} disabled/></label></div>
   <label>Note<textarea value={f.note} onChange={e=>u('note',e.target.value)}/></label>
-  <div className="grow"><button className="pill" disabled={!f.item}>Submit request</button>{prefill&&<button type="button" className="link" onClick={()=>onDone?.(null)}>Cancel</button>}</div>
+  <div className="grow"><button className="pill" disabled={!f.item}>Submit request</button>{cleanHref&&<a className="pill sm light-b" href={cleanHref} target="_blank" rel="noopener noreferrer">Open purchase link ↗</a>}{prefill&&<button type="button" className="link" onClick={()=>onDone?.(null)}>Cancel</button>}</div>
   <small className="muted">Request only — no real purchasing or payment.</small></form>}
 
 export function Orders({user,prefill,clearPrefill}){const[orders,setOrders]=useState(()=>LS('md_orders',[]));const[fl,setFl]=useState({status:'All',urgency:'All',q:''});const[showForm,setShowForm]=useState(false)
  const refresh=()=>setOrders(LS('md_orders',[]))
  const setStatus=(o,s)=>{SET('md_orders',LS('md_orders',[]).map(x=>x.id===o.id?{...x,status:s,history:[...x.history,{status:s,by:user.name,ts:now()}]}:x));audit(user,`Order ${s.toLowerCase()}`,`${o.id}: ${o.qty} ${o.unit} ${o.item}`)
   if(s==='Received'){let inv=getInv();const i=inv.find(x=>x.id===o.itemId)||inv.find(x=>x.name.toLowerCase()===o.item.toLowerCase())
-   if(i){inv=inv.map(x=>x.id===i.id?{...x,qty:x.qty+o.qty}:x);audit(user,'Inventory received',`${i.name}: ${i.qty} → ${i.qty+o.qty} ${i.unit} (from ${o.id})`)}
-   else{inv=[...inv,{id:uid('INV'),name:o.item,type:o.type,qty:o.qty,unit:o.unit,min:0,location:'Receiving'}];audit(user,'Inventory item created',`${o.item}: ${o.qty} ${o.unit} (from ${o.id})`)}
+   if(i){inv=inv.map(x=>x.id===i.id?{...x,qty:x.qty+o.qty,url:x.url||o.url||''}:x);audit(user,'Inventory received',`${i.name}: ${i.qty} → ${i.qty+o.qty} ${i.unit} (from ${o.id})`)}
+   else{inv=[...inv,{id:uid('INV'),name:o.item,type:o.type,qty:o.qty,unit:o.unit,min:0,location:'Receiving',url:o.url||''}];audit(user,'Inventory item created',`${o.item}: ${o.qty} ${o.unit} (from ${o.id})`)}
    SET('md_inventory',inv)}
   refresh()}
+ const inv=getInv()
+ const urlFor=o=>o.url||inv.find(x=>x.id===o.itemId||x.name.toLowerCase()===String(o.item||'').toLowerCase())?.url||''
  const list=orders.filter(o=>(fl.status==='All'||o.status===fl.status)&&(fl.urgency==='All'||o.urgency===fl.urgency)&&(!fl.q||`${o.item} ${o.requestedBy} ${o.supplier} ${o.id}`.toLowerCase().includes(fl.q.toLowerCase())))
  const open=prefill||showForm
  return <>{open&&<OrderForm key={prefill?.id||'new'} user={user} prefill={prefill} onDone={()=>{clearPrefill?.();setShowForm(false);refresh()}}/>}
  <div className="toolbar"><div className="filters"><select aria-label="Status" value={fl.status} onChange={e=>setFl({...fl,status:e.target.value})}><option value="All">All statuses</option>{STATUSES.map(s=><option key={s}>{s}</option>)}</select><select aria-label="Urgency" value={fl.urgency} onChange={e=>setFl({...fl,urgency:e.target.value})}><option value="All">All urgency</option>{URG.map(s=><option key={s}>{s}</option>)}</select><input placeholder="Search item, requester, supplier…" value={fl.q} onChange={e=>setFl({...fl,q:e.target.value})}/></div>
   <div className="grow"><button className="link" onClick={()=>csv('orders.csv',list.map(({history,...o})=>({...o,history:history.map(h=>`${h.status} by ${h.by} ${h.ts}`).join(' | ')})))}>Export CSV</button>{!open&&<button className="pill sm" onClick={()=>setShowForm(true)}>+ New request</button>}</div></div>
- <Table cols={['ID','Item','Qty','Urgency','Requested by','Needed','Est. $','Status','Action']} rows={list.map(o=><tr key={o.id}><td className="mono">{o.id}</td><td><b>{o.item}</b><br/><small className="muted">{o.type}{o.supplier?' · '+o.supplier:''}{o.note?' · '+o.note:''}</small></td><td className="nowrap">{o.qty} {o.unit}</td><td><Badge s={o.urgency}/></td><td>{o.requestedBy}<br/><small className="muted">{fmt(o.created)}</small></td><td className="nowrap">{o.date}</td><td>{o.cost===''?'—':'$'+Number(o.cost).toFixed(2)}</td><td><Badge s={o.status}/></td><td><div className="acts">{NEXT[o.status].map(s=><button key={s} className={s==='Denied'?'link':'pill sm'} onClick={()=>setStatus(o,s)}>{LABEL[s]}</button>)}</div></td></tr>)}/></>}
+ <Table cols={['ID','Item','Qty','Urgency','Requested by','Needed','Est. $','Status','Action']} rows={list.map(o=>{const link=urlFor(o);return <tr key={o.id}><td className="mono">{o.id}</td><td><b>{o.item}</b><br/><small className="muted">{o.type}{o.supplier?' · '+o.supplier:''}{o.note?' · '+o.note:''}</small>{link&&<><br/><a className="link tiny" href={link} target="_blank" rel="noopener noreferrer">Buy on {hostOf(link)} ↗</a></>}</td><td className="nowrap">{o.qty} {o.unit}</td><td><Badge s={o.urgency}/></td><td>{o.requestedBy}<br/><small className="muted">{fmt(o.created)}</small></td><td className="nowrap">{o.date}</td><td>{o.cost===''?'—':'$'+Number(o.cost).toFixed(2)}</td><td><Badge s={o.status}/></td><td><div className="acts">{link&&<a className="pill sm light-b" href={link} target="_blank" rel="noopener noreferrer">Buy ↗</a>}{NEXT[o.status].map(s=><button key={s} className={s==='Denied'?'link':'pill sm'} onClick={()=>setStatus(o,s)}>{LABEL[s]}</button>)}</div></td></tr>})}/></>}
 
 export function RequestSupplies({user}){const[k,setK]=useState(0);const mine=LS('md_orders',[]).filter(o=>o.requestedBy===user.name)
- return <><OrderForm key={k} user={user} onDone={()=>setK(k+1)}/><h2 className="h2l">My requests</h2><Table cols={['ID','Item','Qty','Urgency','Status','Updated']} rows={mine.map(o=><tr key={o.id}><td className="mono">{o.id}</td><td>{o.item}</td><td>{o.qty} {o.unit}</td><td><Badge s={o.urgency}/></td><td><Badge s={o.status}/></td><td>{fmt(o.history.at(-1).ts)}</td></tr>)}/></>}
+ return <><OrderForm key={k} user={user} onDone={()=>setK(k+1)}/><h2 className="h2l">My requests</h2><Table cols={['ID','Item','Qty','Urgency','Status','Updated']} rows={mine.map(o=><tr key={o.id}><td className="mono">{o.id}</td><td>{o.item}{o.url&&<><br/><a className="link tiny" href={o.url} target="_blank" rel="noopener noreferrer">Buy on {hostOf(o.url)} ↗</a></>}</td><td>{o.qty} {o.unit}</td><td><Badge s={o.urgency}/></td><td><Badge s={o.status}/></td><td>{fmt(o.history.at(-1).ts)}</td></tr>)}/></>}
 
 const COND=['good','worn','damaged','expired']
 export function StockCount({user}){const[shop,setShop]=useState(()=>ld('md_shop',SEED_SHOP));const[checks,setChecks]=useState(()=>LS('md_checks',[]));const[sess,setSess]=useState(null);const[view,setView]=useState(null);const blankN={name:'',cat:'Part',counted:1,location:'',condition:'good',note:''};const[nw,setNw]=useState(blankN)
