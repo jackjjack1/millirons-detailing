@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
-    "test:auth": "node --test test/auth.test.mjs test/cors.test.mjs",
+    "test:auth": "node --test test/auth.test.mjs test/cors.test.mjs test/ops-client.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
