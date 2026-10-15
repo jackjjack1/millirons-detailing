@@ -18,7 +18,7 @@ const emit=b=>listeners.forEach(f=>f(b))
 const objUrl=r=>{if(!urls.has(r.id))urls.set(r.id,URL.createObjectURL(r.blob));return urls.get(r.id)}
 // ── Upload one local record ──
 async function upload(rec){const fd=new FormData();fd.append('bookingId',rec.bookingId);fd.append('group',rec.group);fd.append('ts',String(rec.ts));fd.append('by',rec.by||'');fd.append('clientId',rec.id);fd.append('file',rec.blob,'photo.jpg')
- const r=await fetch('/api/photos',{method:'POST',body:fd});if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
+ const r=await fetch('/api/photos',{method:'POST',body:fd,credentials:'same-origin'});if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
 async function trySync(rec){if(!(await apiAvailable())){const n={...rec,state:'local'};await save(n);emit(rec.bookingId);return n}await save({...rec,state:'uploading'});emit(rec.bookingId)
  try{const j=await upload(rec);const n={...rec,state:'synced',remoteKey:j.key,remoteUrl:j.url,error:''};await save(n);emit(rec.bookingId);return n}
  catch(e){const n={...rec,state:'failed',error:e.message,tries:(rec.tries||0)+1};await save(n);emit(rec.bookingId);return n}}
@@ -27,16 +27,16 @@ if(typeof window!=='undefined'){addEventListener('online',()=>retryPending());se
 // ── Public API ──
 export const photoStore={
  async put(bookingId,group,file,meta={}){const blob=await compress(file);const rec={id:`${bookingId}-${group}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,bookingId,group,ts:Date.now(),by:meta.by||'',size:blob.size,blob,state:'pending'};await save(rec);emit(bookingId);trySync(rec);return rec},
- async list(bookingId){const local=(await getAll(bookingId))||[];let remote=[];if(await apiAvailable()){try{const r=await fetch('/api/photos?bookingId='+encodeURIComponent(bookingId),{cache:'no-store'});if(r.ok)remote=(await r.json()).photos||[]}catch{}}
+ async list(bookingId){const local=(await getAll(bookingId))||[];let remote=[];if(await apiAvailable()){try{const r=await fetch('/api/photos?bookingId='+encodeURIComponent(bookingId),{cache:'no-store',credentials:'same-origin'});if(r.ok)remote=(await r.json()).photos||[]}catch{}}
   const seen=new Set(local.filter(l=>l.remoteKey).map(l=>l.remoteKey))
   const out=[...local.map(l=>({id:l.id,bookingId,group:l.group,ts:l.ts,by:l.by,size:l.size,url:objUrl(l),state:l.state,remoteKey:l.remoteKey,error:l.error})),
    ...remote.filter(r=>!seen.has(r.key)).map(r=>({...r,id:r.key,state:'synced',remoteKey:r.key}))]
   return out.sort((a,b)=>a.ts-b.ts)},
- async remove(id){const rec=await getOne(id);const key=rec?.remoteKey||(id.startsWith('bookings/')?id:null);if(key&&(await apiAvailable())){try{await fetch('/api/photos/'+key,{method:'DELETE'})}catch{}}
+ async remove(id){const rec=await getOne(id);const key=rec?.remoteKey||(id.startsWith('bookings/')?id:null);if(key&&(await apiAvailable())){try{await fetch('/api/photos/'+key,{method:'DELETE',credentials:'same-origin'})}catch{}}
   if(rec){await del(id);if(urls.has(id)){URL.revokeObjectURL(urls.get(id));urls.delete(id)}emit(rec.bookingId)}}}
 // ── Application documents (vehicle proof / registration / insurance) ──
 export async function uploadDocs(applicationId,van){if(!(await apiAvailable()))return{van,uploaded:0,mode:'local'};let n=0
- const send=async(f,type)=>{if(f.remoteUrl)return f;try{const blob=await (await fetch(f.data)).blob();const fd=new FormData();fd.append('applicationId',applicationId);fd.append('type',type);fd.append('file',blob,f.name||'file');const r=await fetch('/api/documents',{method:'POST',body:fd});if(!r.ok)throw 0;const j=await r.json();n++;return{...f,remoteUrl:j.url,remoteKey:j.key}}catch{return{...f,uploadFailed:true}}}
+ const send=async(f,type)=>{if(f.remoteUrl)return f;try{const blob=await (await fetch(f.data)).blob();const fd=new FormData();fd.append('applicationId',applicationId);fd.append('type',type);fd.append('file',blob,f.name||'file');const r=await fetch('/api/documents',{method:'POST',body:fd,credentials:'same-origin'});if(!r.ok)throw 0;const j=await r.json();n++;return{...f,remoteUrl:j.url,remoteKey:j.key}}catch{return{...f,uploadFailed:true}}}
  const photos=[];for(const f of van.photos)photos.push(await send(f,'vehicle'))
  const docs=[];for(const f of van.docs)docs.push(await send(f,/insur/i.test(f.name)?'insurance':/reg/i.test(f.name)?'registration':'other'))
  return{van:{...van,photos,docs},uploaded:n,mode:'r2'}}

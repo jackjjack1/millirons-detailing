@@ -4,6 +4,9 @@ name = "millirons-detailing"
 pages_build_output_dir = "./dist"
 compatibility_date = "2026-10-01"
 
+# PHOTOS is the only storage binding. Account records, sessions, and invites
+# are private objects in this bucket under the _auth/ prefix. Set SESSION_SECRET
+# and ADMIN_SETUP_CODE with `wrangler pages secret put` (see DEPLOY.md).
 [[r2_buckets]]
 binding = "PHOTOS"
 bucket_name = "millirons-detailing-media"
