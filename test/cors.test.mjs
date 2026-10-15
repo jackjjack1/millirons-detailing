@@ -16,7 +16,7 @@ function call(path, {method = 'GET', origin, url} = {}) {
 
 function noStar(headers) {
   assert.notEqual(headers.get('access-control-allow-origin'), '*')
-  const joined = [...headers.entries()].map(([k, v]) => k + ':' + v).join('\n')
+  const joined = [...headers.entries()].map(([k, v]) => k + ':' + v).join('\\n')
   assert.equal(joined.includes('access-control-allow-origin: *'), false)
 }
 
@@ -27,6 +27,7 @@ test('allowlist accepts production, this Pages project, and the AI Studio previe
     'https://millirons-detailing.pages.dev',
     'https://main.millirons-detailing.pages.dev',
     'https://cursor-aistudio-preview-cors-354f.millirons-detailing.pages.dev',
+    'https://pv-3ed654dcaea0-f048e0d5-f335-4b5b-82b9-83447e59dfbe.style.dev',
     PREVIEW,
     'https://18skwhjotk39mh0r3x4tql413g0u3fgnf3r3m8yu05rm30musr-h852644758.scf.usercontent.goog',
   ]
@@ -39,6 +40,8 @@ test('allowlist rejects wildcards, other Google hosts, and other Pages projects'
     'null',
     '',
     'https://evil.example',
+    'https://pv-unrelated-preview.style.dev',
+    'http://pv-3ed654dcaea0-f048e0d5-f335-4b5b-82b9-83447e59dfbe.style.dev',
     'http://millironsdetailing.com',
     'https://millironsdetailing.com.evil.com',
     'https://notmillironsdetailing.com',
@@ -83,7 +86,7 @@ test('state-changing methods require an origin, and the Stripe webhook does not'
 
 test('https session cookie is cross-site, and plain HTTP stays Lax', () => {
   const secure = sessionCookie('sid.sig', {secure: true, maxAge: 60})
-  assert.match(secure, /md_session=sid\.sig/)
+  assert.match(secure, /md_session=sid\\.sig/)
   assert.match(secure, /HttpOnly/)
   assert.match(secure, /SameSite=None/)
   assert.match(secure, /Secure/)
@@ -93,6 +96,25 @@ test('https session cookie is cross-site, and plain HTTP stays Lax', () => {
   assert.match(local, /HttpOnly/)
   assert.doesNotMatch(local, /Secure/)
   assert.doesNotMatch(local, /SameSite=None/)
+})
+
+test('the exact Freebuff preview origin can submit credentialed login requests', async () => {
+  const origin = 'https://pv-3ed654dcaea0-f048e0d5-f335-4b5b-82b9-83447e59dfbe.style.dev'
+  const preflight = await onRequest({
+    request: call('/api/auth/login', {method: 'OPTIONS', origin}),
+    async next() { throw new Error('preflight should not reach the handler') },
+  })
+  assert.equal(preflight.status, 204)
+  assert.equal(preflight.headers.get('access-control-allow-origin'), origin)
+  assert.equal(preflight.headers.get('access-control-allow-credentials'), 'true')
+
+  const post = await onRequest({
+    request: new Request(PRODUCTION + '/api/auth/login', {method: 'POST', headers: {origin, 'content-type': 'application/json'}, body: '{}'}),
+    async next() { return new Response('{"error":"Invalid email or password."}', {status: 401, headers: {'content-type': 'application/json'}}) },
+  })
+  assert.equal(post.status, 401)
+  assert.equal(post.headers.get('access-control-allow-origin'), origin)
+  assert.equal(post.headers.get('access-control-allow-credentials'), 'true')
 })
 
 test('preflight from an allowlisted origin reflects that origin and allows credentials', async () => {
@@ -176,7 +198,7 @@ test('a wildcard from the handler is replaced with the request origin', async ()
   assert.equal(response.status, 401)
   assert.equal(response.headers.get('access-control-allow-origin'), PREVIEW)
   assert.equal(response.headers.get('access-control-allow-credentials'), 'true')
-  assert.match(response.headers.get('set-cookie'), /md_session=abc\.def/)
+  assert.match(response.headers.get('set-cookie'), /md_session=abc\\.def/)
   noStar(response.headers)
   const text = await response.text()
   assert.equal(text, '{"user":null}')
