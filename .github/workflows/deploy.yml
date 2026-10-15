@@ -19,7 +19,7 @@ jobs:
       - run: npm ci
       - run: npx vite build
       - name: Deploy to Cloudflare Pages (production)
-        run: npx wrangler pages deploy dist --project-name=millarns-detailing --branch=main
+        run: npx wrangler pages deploy dist --project-name=millirons-detailing --branch=main
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: d1c361c54e7fc91c05db264186fa1eaf
