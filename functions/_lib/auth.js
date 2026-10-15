@@ -49,8 +49,12 @@ export function requestIsSecure(request) {
 }
 
 export function sessionCookie(token, {secure, maxAge}) {
-  const parts = [`${COOKIE}=${token}`, 'HttpOnly', 'Path=/', 'SameSite=Lax', `Max-Age=${maxAge}`]
-  if (secure) parts.push('Secure')
+  // Cross-site preview fetches need SameSite=None; Secure. Browsers drop
+  // SameSite=None without Secure, so plain HTTP local dev stays Lax.
+  // Partitioned keeps a production login in its own top-level-site jar.
+  const parts = [`${COOKIE}=${token}`, 'HttpOnly', 'Path=/', `Max-Age=${maxAge}`]
+  if (secure) parts.push('SameSite=None', 'Secure', 'Partitioned')
+  else parts.push('SameSite=Lax')
   return parts.join('; ')
 }
 
