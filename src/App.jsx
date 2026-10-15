@@ -6,9 +6,10 @@ import BookingCalendar, { slotsFor } from './BookingCalendar'
 import { GaragePicker, GarageDashboard } from './Garage'
 import { COLORS } from './garage'
 import { BookingList, BookingDetail } from './Bookings'
-import { Team, AcceptInvite, accounts, InviteEmployees } from './Team'
+import { Team, AcceptInvite, InviteEmployees } from './Team'
 import { TimeClock, Attendance } from './TimeClock'
-import { Apply, ApplicantStatus, Applications, pendingCount } from './Apply'
+import { Apply, ApplicantStatus, Applications } from './Apply'
+import { authSetupStatus, authSetup, authLogin, authLogout, authRegister, authMe, authAccounts, ACCOUNTS_EVENT } from './authApi.js'
 import { MyBookingLink, AllBookingLinks, BookingWith, pathToHash } from './BookLink'
 pathToHash()
 import { Inventory, Orders, RequestSupplies, StockCount, AuditLog, Tabs, getInv, LS as OLS } from './Ops'
@@ -23,7 +24,7 @@ const ini=n=>n.split(' ').map(x=>x[0]).join('')
 const money=n=>'$'+n.toFixed(2)
 function Nav({user,setUser}){const[open,setOpen]=useState(false);const h=useHash();useEffect(()=>setOpen(false),[h])
  useEffect(()=>{document.body.style.overflow=open?'hidden':'';return()=>{document.body.style.overflow=''}},[open])
- const out=()=>{localStorage.removeItem('md_session');setUser(null);setOpen(false);location.hash='/login'}
+ const out=async()=>{await authLogout().catch(()=>{});localStorage.removeItem('md_session');setUser(null);setOpen(false);location.hash='/login'}
  const acct=user?<a href="#/dashboard" className="acct">{user.name.split(' ')[0]}</a>:<a href="#/login" className="acct">Sign in</a>
  return <><nav className="nav"><div className="nav-in"><Logo/><div className="links"><a className="dl" href="#/#services">Services</a><a className="dl" href="#/#addons">Add-ons</a><a className="dl" href="#/detailers">Detailers</a><a className="dl" href="#/#faq">FAQ</a><a className="dl" href="#/join">Become a Detailer</a>{acct}<a href="#/book" className="pill sm">Book</a><button className="burger" aria-label={open?'Close menu':'Open menu'} aria-expanded={open} onClick={()=>setOpen(!open)}><span/><span/></button></div></div></nav>
  {open&&<div className="sheet" role="dialog" aria-label="Menu"><div className="sheet-in">{[['#/','Home'],['#/#services','Services'],['#/#addons','Add-ons'],['#/detailers','Detailers'],['#/#faq','FAQ'],['#/join','Become a Detailer'],['#/book','Book a detail']].map(([href,l])=><a key={l} href={href} onClick={()=>setOpen(false)}>{l}</a>)}
@@ -81,48 +82,50 @@ function PaySuccess({q}){const sid=new URLSearchParams(q).get('session_id');cons
  return <section className="sec light top center">{st.s==='checking'?<><h1 className="h1s">Confirming payment…</h1><p className="sub">Verifying with Stripe.</p></>:st.s==='paid'?<><div className="check">✓</div><h1 className="h1s">Paid. You're booked.</h1><p className="sub">Confirmation <b>{st.d.bookingId}</b> · {money(st.d.amount)} paid in full</p><a className="pill" href={'#/booking/'+st.d.bookingId}>View booking</a></>:st.s==='pending'?<><h1 className="h1s">Payment pending.</h1><p className="sub">Stripe hasn’t confirmed payment yet{st.d?.method==='affirm'?' (Affirm can take a moment)':''}. Your booking {st.d?.bookingId} stays “Awaiting payment” until it does.</p><a className="pill" href={'#/booking/success?session_id='+sid}>Check again</a></>:<><h1 className="h1s">Couldn’t verify payment.</h1><p className="sub">{st.e}</p><a className="pill" href="#/book">Back to booking</a></>}</section>}
 function Join(){const[s,setS]=useState(false);const sub=e=>{e.preventDefault();SET('md_applicants',[...LS('md_applicants',[]),Object.fromEntries(new FormData(e.target))]);setS(true)}
  return <><section className="sec dark top center"><h1 className="h1s">Your skills. Your schedule.</h1><p className="sub">Interested in detailing with {BRAND}? Tell us about yourself. This is an interest form only — team accounts are invite-only, and we’ll email you an invite if it’s a fit.</p></section><section className="sec light">{s?<div className="center"><div className="check">✓</div><h2>Thanks — we got it.</h2><p className="sub center">We'll be in touch (demo).</p></div>:<form className="panel" onSubmit={sub}><div className="two"><label>Full name<input name="name" required/></label><label>Email<input name="email" type="email" required/></label><label>Phone<input name="phone" required/></label><label>Neighborhood / city<input name="city" placeholder="e.g. Decatur" required/></label><label>Years of experience<input name="years" type="number" min="0" required/></label><label>Own equipment?<select name="equip"><option>Yes, full mobile rig</option><option>Partial</option><option>No</option></select></label></div><label>Services offered<input name="services" placeholder="Interior, ceramic, paint correction…"/></label><label>About you<textarea name="bio"/></label><button className="pill">Send interest form</button></form>}</section></>}
-function Login({setUser,q}){const r0=new URLSearchParams(q).get('role');const[role,setRole]=useState(['customer','employee','admin'].includes(r0)?r0:'customer');const[isNew,setIsNew]=useState(false);const[name,setName]=useState('');const[em,setEm]=useState('');const[pw,setPw]=useState('');const[err,setErr]=useState('')
- const adminExists=accounts().some(x=>x.role==='admin')
- const go=e=>{e.preventDefault();setErr('')
+function Login({setUser,q}){const r0=new URLSearchParams(q).get('role');const[role,setRole]=useState(['customer','employee','admin'].includes(r0)?r0:'customer');const[isNew,setIsNew]=useState(false);const[name,setName]=useState('');const[em,setEm]=useState('');const[pw,setPw]=useState('');const[code,setCode]=useState('');const[err,setErr]=useState('');const[busy,setBusy]=useState(false);const[ready,setReady]=useState(false);const[adminExists,setAdminExists]=useState(true);const[setupEnabled,setSetupEnabled]=useState(false)
+ useEffect(()=>{let on=true;authSetupStatus().then(d=>{if(!on)return;setAdminExists(!!d.adminExists);setSetupEnabled(!!d.setupEnabled)}).catch(()=>{}).finally(()=>{if(on)setReady(true)});return()=>{on=false}},[])
+ const creatingAdmin=role==='admin'&&ready&&!adminExists&&setupEnabled
+ const go=async e=>{e.preventDefault();setErr('')
   if(!em.trim()||!pw)return setErr('Please enter both email and password.')
-  const accList=accounts()
-  if(role==='customer'&&isNew){
-   if(!name.trim())return setErr('Please enter your full name.')
-   if(accList.some(x=>x.email.toLowerCase()===em.trim().toLowerCase()))return setErr('An account with this email already exists. Please sign in.')
-   const acc={name:name.trim(),email:em.trim().toLowerCase(),pass:pw,role:'customer',created:Date.now()}
-   SET('md_accounts',[...accList,acc]);const{pass:_p,van:_v,...sess}=acc;SET('md_session',sess);setUser(sess);location.hash='/dashboard';return
-  }
-  if(role==='admin'&&!adminExists){
-   if(!name.trim())return setErr('Please enter your name to initialize the admin account.')
-   const acc={name:name.trim(),email:em.trim().toLowerCase(),pass:pw,role:'admin',created:Date.now()}
-   SET('md_accounts',[...accList,acc]);const{pass:_p,van:_v,...sess}=acc;SET('md_session',sess);setUser(sess);location.hash='/dashboard';return
-  }
-  const m=accList.find(x=>x.role===role&&x.email.toLowerCase()===em.trim().toLowerCase()&&x.pass===pw)
-  if(!m)return setErr('Incorrect email or password for this role.')
-  const {pass:_p,van:_v,...sess}=m;SET('md_session',sess);setUser(sess);location.hash='/dashboard'}
- return <section className="sec light top center"><h1 className="h1s">Sign in.</h1><div className="seg">{['customer','employee','admin'].map(r=><button key={r} className={role===r?'on':''} onClick={()=>{setRole(r);setErr('');setIsNew(false)}}>{r[0].toUpperCase()+r.slice(1)}</button>)}</div>
+  if(role==='customer'&&isNew&&!name.trim())return setErr('Please enter your full name.')
+  if(creatingAdmin&&!name.trim())return setErr('Please enter your name to initialize the admin account.')
+  if(creatingAdmin&&!code.trim())return setErr('Enter the one-time setup code.')
+  if((role==='customer'&&isNew)||creatingAdmin){if(pw.length<8)return setErr('Password must be at least 8 characters.')}
+  setBusy(true)
+  try{
+   const body={email:em.trim(),password:pw,name:name.trim()}
+   const data=role==='customer'&&isNew?await authRegister(body):creatingAdmin?await authSetup({...body,code:code.trim()}):await authLogin({email:body.email,password:pw,role})
+   localStorage.removeItem('md_session');setUser(data.user);location.hash='/dashboard'
+  }catch(ex){setErr(ex.message||'Could not sign in.')}
+  finally{setBusy(false)}}
+ return <section className="sec light top center"><h1 className="h1s">Sign in.</h1><div className="seg">{['customer','employee','admin'].map(r=><button type="button" key={r} className={role===r?'on':''} onClick={()=>{setRole(r);setErr('');setIsNew(false)}}>{r[0].toUpperCase()+r.slice(1)}</button>)}</div>
  <form className="panel left" onSubmit={go}>
   {role==='customer'&&<div className="seg full" style={{marginBottom:'18px'}}><button type="button" className={!isNew?'on':''} onClick={()=>setIsNew(false)}>Sign in</button><button type="button" className={isNew?'on':''} onClick={()=>setIsNew(true)}>Create account</button></div>}
-  {role==='admin'&&!adminExists&&<p className="note leftn" style={{marginBottom:'16px'}}>No admin account found. Fill in your details below to set up your primary admin account.</p>}
-  {(isNew||(role==='admin'&&!adminExists))&&<label>Full name<input name="name" value={name} placeholder="e.g. Jordan Millirons" onChange={e=>setName(e.target.value)} required/></label>}
+  {creatingAdmin&&<p className="note leftn" style={{marginBottom:'16px'}}>No admin account found. Fill in your details below to set up your primary admin account.</p>}
+  {role==='admin'&&ready&&!adminExists&&!setupEnabled&&<p className="note leftn" style={{marginBottom:'16px'}}>Admin setup isn’t available yet. Ask the site owner to finish server setup, then reload this page.</p>}
+  {(isNew||creatingAdmin)&&<label>Full name<input name="name" value={name} placeholder="e.g. Jordan Millirons" onChange={e=>setName(e.target.value)} required/></label>}
   <label>Email<input name="email" type="email" value={em} placeholder="you@example.com" onChange={e=>setEm(e.target.value)} required/></label>
   <label>Password<input name="password" type="password" value={pw} placeholder="••••••••" onChange={e=>setPw(e.target.value)} required/></label>
+  {creatingAdmin&&<label>Setup code<input name="setupCode" type="password" value={code} placeholder="One-time code" autoComplete="off" onChange={e=>setCode(e.target.value)} required/></label>}
   {err&&<p className="err">{err}</p>}
-  <button className="pill wide">{role==='customer'&&isNew?'Create account':role==='admin'&&!adminExists?'Create admin account':'Sign in'}</button>
+  <button className="pill wide" type="submit" disabled={!ready||busy}>{role==='customer'&&isNew?'Create account':creatingAdmin?'Create admin account':'Sign in'}</button>
   {role==='employee'&&<p className="muted small" style={{marginTop:'18px',textAlign:'center'}}>Employee accounts are created via invitation. If you applied, check your status with the link sent to your email.</p>}
  </form></section>}
 const Table=({cols,rows})=><div className="tbl"><table><thead><tr>{cols.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={i}>{r.map((c,j)=><td key={j}>{c}</td>)}</tr>):<tr><td colSpan={cols.length} className="muted">Nothing yet.</td></tr>}</tbody></table></div>
 const sampleJobs=[]
 const sname=id=>services.find(s=>s.id===id)?.name||id
-function Dashboard({user,setUser}){const[tab,setTab]=useState(null);const[area,setArea]=useState('Overview');const[pre,setPre]=useState(null);const[veh,setVeh]=useState(LS('md_vehicles',[]));const[nv,setNv]=useState({label:'',vin:''})
+function Dashboard({user,setUser}){const[tab,setTab]=useState(null);const[area,setArea]=useState('Overview');const[pre,setPre]=useState(null);const[veh,setVeh]=useState(LS('md_vehicles',[]));const[nv,setNv]=useState({label:'',vin:''});const[pend,setPend]=useState(0)
+ useEffect(()=>{let on=true;authMe().then(u=>{if(on)setUser(u||null)}).catch(()=>{});return()=>{on=false}},[setUser])
+ useEffect(()=>{if(user?.role!=='admin')return;let on=true;const load=()=>authAccounts().then(d=>{if(on)setPend(d.pending||0)}).catch(()=>{});load();addEventListener(ACCOUNTS_EVENT,load);return()=>{on=false;removeEventListener(ACCOUNTS_EVENT,load)}},[user?.role])
+ const logout=async()=>{await authLogout().catch(()=>{});localStorage.removeItem('md_session');setUser(null);location.hash='/login'}
  if(!user)return <section className="sec top center"><p>Please <a className="link" href="#/login">sign in</a>.</p></section>
- if(user.role==='employee'&&user.status&&user.status!=='Approved'){const live=accounts().find(a=>a.email===user.email);if(!live||live.status!=='Approved')return <><ApplicantStatus key={live?.status} user={user} setUser={setUser}/><p className="center"><button className="link" onClick={()=>{localStorage.removeItem('md_session');setUser(null);location.hash='/login'}}>Sign out</button></p></>}
- const all=LS('md_bookings',[]);const logout=()=>{localStorage.removeItem('md_session');setUser(null);location.hash='/login'}
+ if(user.role==='employee'&&user.status&&user.status!=='Approved')return <><ApplicantStatus key={user.status} user={user} setUser={setUser}/><p className="center"><button className="link" onClick={logout}>Sign out</button></p></>
+ const all=LS('md_bookings',[])
  const addV=()=>{if(!nv.label)return;const v=[...veh,nv];setVeh(v);SET('md_vehicles',v);setNv({label:'',vin:''})}
  let body
  if(user.role==='customer'){const mine=all.filter(b=>b.email===user.email);body=<><h2 className="h2l">My bookings</h2><BookingList bookings={mine} user={user}/><h3 className="h3l">Calendar</h3><BookingCalendar mine={mine} all={all} sname={sname}/><GarageDashboard user={user}/></>}
  else if(user.role==='employee'){const jobs=all.filter(b=>b.detailer===user.detailer).sort((a,b)=>a.date.localeCompare(b.date));const T=tab||'Time clock';body=<><Tabs tabs={['Time clock','Jobs','My booking link','Request supplies']} value={T} onChange={setTab}/>{T==='Time clock'?<TimeClock user={user}/>:T==='My booking link'?<MyBookingLink user={user}/>:T==='Jobs'?<><BookingList bookings={jobs} user={user} title="Assigned bookings & messages"/><div className="stats"><div><b>{jobs.length}</b><span>Assigned jobs</span></div><div><b>${jobs.reduce((s,b)=>s+b.total,0)}</b><span>Booked value</span></div><div><b>4.9</b><span>Rating</span></div></div><h2 className="h2l">Assigned jobs</h2><Table cols={['ID','Customer','Service','Address','Status']} rows={jobs.map(b=>[b.id,b.name,sname(b.service),`${b.address}, ${b.city}`,b.status])}/><h2 className="h2l">Schedule</h2><Table cols={['Date','Time','Job']} rows={jobs.map(b=>[b.date,b.time,`${sname(b.service)} — ${b.city}`])}/></>:<RequestSupplies user={user}/>}</>}
- else{const lowN=getInv().filter(x=>x.qty<=x.min).length,reqN=OLS('md_orders',[]).filter(o=>o.status==='Requested').length,pend=pendingCount()
+ else{const lowN=getInv().filter(x=>x.qty<=x.min).length,reqN=OLS('md_orders',[]).filter(o=>o.status==='Requested').length
   const areas=['Overview',['People',pend||null],['Supplies',(lowN+reqN)||null],'Activity']
   const subs={People:[['Applications',pend||null],'Invite employees','Team','Attendance'],Supplies:[['Inventory',lowN||null],['Orders',reqN||null],'Stock Count'],Activity:['Booking links','Audit log']}
   const A=['Overview','People','Supplies','Activity'].includes(area)?area:'Overview'
@@ -145,8 +148,9 @@ function Dashboard({user,setUser}){const[tab,setTab]=useState(null);const[area,s
   </>}
  return <section className="sec light top"><div className="dash-h"><div><p className="eyebrow">{user.role[0].toUpperCase()+user.role.slice(1)} dashboard</p><h1 className="h1s">Hi, {user.name.split(' ')[0]}.</h1></div><button className="link" onClick={logout}>Sign out</button></div>{body}</section>}
 if(new URLSearchParams(location.search).get('preview')==='phone'&&window.top===window)location.replace('/phone.html')
-export default function App(){const h=useHash();const[path,q='']=h.split('?');const[user,setUser]=useState(LS('md_session',null));useReveal(h)
+export default function App(){const h=useHash();const[path,q='']=h.split('?');const[user,setUser]=useState(null);const[authReady,setAuthReady]=useState(false);useReveal(h)
+ useEffect(()=>{let on=true;authMe().then(u=>{if(on)setUser(u||null)}).catch(()=>{if(on)setUser(null)}).finally(()=>{if(on)setAuthReady(true)});return()=>{on=false}},[])
  useEffect(()=>{const m=h.match(/#(\w+)$/);if(m)setTimeout(()=>document.getElementById(m[1])?.scrollIntoView({behavior:'smooth'}),60)},[h])
  let page=<Home/>;const pp=path.split('#')[0]
- if(pp==='/detailers')page=<Detailers/>;else if(pp.startsWith('/detailer/'))page=<Profile id={pp.split('/')[2]}/>;else if(pp==='/book')page=<Book key={h} q={q} user={user}/>;else if(pp==='/join')page=<Apply key={q} q={q}/>;else if(pp==='/login')page=<Login key={q} q={q} setUser={setUser}/>;else if(pp.startsWith('/invite/'))page=<AcceptInvite key={pp} token={pp.split('/')[2]} setUser={setUser}/>;else if(pp==='/booking/success')page=<PaySuccess q={q}/>;else if(pp.startsWith('/booking/'))page=<BookingDetail id={pp.split('/')[2]} user={user} all={LS('md_bookings',[])}/>;else if(pp==='/dashboard')page=<Dashboard key={user?.role} user={user} setUser={setUser}/>
+ if(pp==='/detailers')page=<Detailers/>;else if(pp.startsWith('/detailer/'))page=<Profile id={pp.split('/')[2]}/>;else if(pp==='/book')page=<Book key={h} q={q} user={user}/>;else if(pp==='/join')page=<Apply key={q} q={q}/>;else if(pp==='/login')page=<Login key={q} q={q} setUser={setUser}/>;else if(pp.startsWith('/invite/'))page=<AcceptInvite key={pp} token={pp.split('/')[2]} setUser={setUser}/>;else if(pp==='/booking/success')page=<PaySuccess q={q}/>;else if(pp.startsWith('/booking/'))page=<BookingDetail id={pp.split('/')[2]} user={user} all={LS('md_bookings',[])}/>;else if(pp==='/dashboard')page=!authReady?<section className="sec top center"><p className="muted">Loading…</p></section>:<Dashboard key={user?.role} user={user} setUser={setUser}/>
  return <><Nav user={user} setUser={setUser}/><main>{page}</main><footer><div className="fgrid"><div><Logo/><p>Mobile car detailing serving metro Atlanta, GA.</p><p>Call {PHONE} <small>({PHONE_NOTE})</small></p></div><div><b>Explore</b><a href="#/#services">Services</a><a href="#/#addons">Add-ons</a><a href="#/detailers">Detailers</a><a href="#/#faq">FAQ</a></div><div><b>Company</b><a href="#/join">Become a Detailer</a><a href="#/login">Sign in</a><a href="#/book">Book</a></div><div><b>Hours (sample)</b>{hours.map(x=><span key={x.day}>{x.day}: {x.open}</span>)}</div></div><p className="copy">Hero photo “2012 Lamborghini Sesto Elemento” by <a href="https://commons.wikimedia.org/wiki/File:2012_Lamborghini_Sesto_Elemento.jpg" target="_blank" rel="noopener">MrWalkr</a>, licensed <a href="https://creativecommons.org/licenses/by-sa/4.0" target="_blank" rel="noopener">CC BY-SA 4.0</a>, resized. © 2026 {BRAND} · Atlanta, GA · Demo site — all prices, profiles and reviews are sample data.</p></footer></>}
