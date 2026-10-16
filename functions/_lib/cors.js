@@ -47,7 +47,7 @@ function parseOrigin(origin) {
 }
 
 function bareHost(host) {
-  return String(host || '').toLowerCase().replace(/^\\[|\\]$/g, '')
+  return String(host || '').toLowerCase().replace(/^\[|\]$/g, '')
 }
 
 function requestHost(request) {
