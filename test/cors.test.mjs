@@ -28,6 +28,7 @@ test('allowlist accepts production, this Pages project, and the AI Studio previe
     'https://main.millirons-detailing.pages.dev',
     'https://cursor-aistudio-preview-cors-354f.millirons-detailing.pages.dev',
     'https://pv-3ed654dcaea0-f048e0d5-f335-4b5b-82b9-83447e59dfbe.style.dev',
+    'https://pv-3ed654dcaea0-b807da82-be41-4b0b-a9c6-bf7de039d997.style.dev',
     PREVIEW,
     'https://18skwhjotk39mh0r3x4tql413g0u3fgnf3r3m8yu05rm30musr-h852644758.scf.usercontent.goog',
   ]
@@ -41,6 +42,7 @@ test('allowlist rejects wildcards, other Google hosts, and other Pages projects'
     '',
     'https://evil.example',
     'https://pv-unrelated-preview.style.dev',
+    'https://pv-3ed654dcaea0-b807da82-be41-4b0b-a9c6-bf7de039d997-other.style.dev',
     'http://pv-3ed654dcaea0-f048e0d5-f335-4b5b-82b9-83447e59dfbe.style.dev',
     'http://millironsdetailing.com',
     'https://millironsdetailing.com.evil.com',
@@ -52,6 +54,7 @@ test('allowlist rejects wildcards, other Google hosts, and other Pages projects'
     'https://scf.usercontent.goog',
     'https://evil.usercontent.goog',
     'https://evil.scf.usercontent.goog',
+    'https://aaaaaaaaaaaaaaaaaaaa-h123456.scf.usercontent.goog',
     'https://preview.googleusercontent.com',
     'https://script.googleusercontent.com',
     'https://aistudio.google.com',
@@ -99,7 +102,7 @@ test('https session cookie is cross-site, and plain HTTP stays Lax', () => {
 })
 
 test('the exact Freebuff preview origin can submit credentialed login requests', async () => {
-  const origin = 'https://pv-3ed654dcaea0-f048e0d5-f335-4b5b-82b9-83447e59dfbe.style.dev'
+  const origin = 'https://pv-3ed654dcaea0-b807da82-be41-4b0b-a9c6-bf7de039d997.style.dev'
   const preflight = await onRequest({
     request: call('/api/auth/login', {method: 'OPTIONS', origin}),
     async next() { throw new Error('preflight should not reach the handler') },

@@ -7,13 +7,13 @@
 //   https://www.millironsdetailing.com
 //   https://millirons-detailing.pages.dev
 //   https://<one-label>.millirons-detailing.pages.dev
-//   https://<hash>-h<version>.scf.usercontent.goog
-//     Google AI Studio's preview iframe. Confirmed from AI Studio build-preview
-//     failures and Google's SafeContentFrame writeup: the app runs on
-//     https://<hash>-h<version>.scf.usercontent.goog, not on aistudio.google.com.
-//     Other *.usercontent.goog and *.googleusercontent.com hosts are not included.
-//   The exact Freebuff preview host for this workspace; other *.style.dev origins
-//     are not included.
+//   Exact, observed AI Studio preview hosts only. Google SafeContentFrame preview
+//     hosts use generated hash/version labels and no stable project id is documented.
+//     Do not allow the whole *.scf.usercontent.goog suffix: it would include previews
+//     from unrelated AI Studio apps. If Google rotates this project's origin, add a
+//     newly verified exact origin. Other *.usercontent.goog hosts are not included.
+//   Exact Freebuff preview hosts observed for this workspace; other *.style.dev
+//     origins are not included.
 //   http(s)://localhost, 127.0.0.1, or ::1 — only when this request itself is
 //     aimed at a local host, so a page on the developer's machine cannot call
 //     the production API.
@@ -25,9 +25,14 @@ const PRODUCTION_HOSTS = new Set([
 ])
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1'])
 const PAGES_SUFFIX = '.millirons-detailing.pages.dev'
-const PREVIEW_SUFFIX = '.scf.usercontent.goog'
-const FREEBUFF_PREVIEW_HOST = 'pv-3ed654dcaea0-f048e0d5-f335-4b5b-82b9-83447e59dfbe.style.dev'
-const PREVIEW_LABEL = /^[a-z0-9]{12,52}-h\d{4,12}$/
+const AI_STUDIO_PREVIEW_HOSTS = new Set([
+  '1jl1na33u4rjuae5liy703wpawa0n7vbg8kwsoearjbano01hv-h830895770.scf.usercontent.goog',
+  '18skwhjotk39mh0r3x4tql413g0u3fgnf3r3m8yu05rm30musr-h852644758.scf.usercontent.goog',
+])
+const FREEBUFF_PREVIEW_HOSTS = new Set([
+  'pv-3ed654dcaea0-f048e0d5-f335-4b5b-82b9-83447e59dfbe.style.dev',
+  'pv-3ed654dcaea0-b807da82-be41-4b0b-a9c6-bf7de039d997.style.dev',
+])
 const DNS_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 export const STATE_CHANGING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const WEBHOOK_PATH = '/api/stripe-webhook'
@@ -43,7 +48,7 @@ function parseOrigin(origin) {
 }
 
 function bareHost(host) {
-  return String(host || '').toLowerCase().replace(/^\[|\]$/g, '')
+  return String(host || '').toLowerCase().replace(/^\\[|\\]$/g, '')
 }
 
 function requestHost(request) {
@@ -64,12 +69,6 @@ function projectPagesHost(host) {
   return DNS_LABEL.test(label)
 }
 
-function aiStudioPreviewHost(host) {
-  if (!host.endsWith(PREVIEW_SUFFIX)) return false
-  const label = host.slice(0, -PREVIEW_SUFFIX.length)
-  return label.length <= 63 && PREVIEW_LABEL.test(label)
-}
-
 export function isAllowedOrigin(origin, request) {
   const url = parseOrigin(origin)
   if (!url) return false
@@ -79,9 +78,9 @@ export function isAllowedOrigin(origin, request) {
   }
   if (url.protocol !== 'https:' || !defaultHttpsPort(url)) return false
   if (PRODUCTION_HOSTS.has(host)) return true
-  if (host === FREEBUFF_PREVIEW_HOST) return true
+  if (FREEBUFF_PREVIEW_HOSTS.has(host)) return true
   if (projectPagesHost(host)) return true
-  if (aiStudioPreviewHost(host)) return true
+  if (AI_STUDIO_PREVIEW_HOSTS.has(host)) return true
   return false
 }
 
