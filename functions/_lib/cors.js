@@ -7,11 +7,10 @@
 //   https://www.millironsdetailing.com
 //   https://millirons-detailing.pages.dev
 //   https://<one-label>.millirons-detailing.pages.dev
-//   Exact, observed AI Studio preview hosts only. Google SafeContentFrame preview
-//     hosts use generated hash/version labels and no stable project id is documented.
-//     Do not allow the whole *.scf.usercontent.goog suffix: it would include previews
-//     from unrelated AI Studio apps. If Google rotates this project's origin, add a
-//     newly verified exact origin. Other *.usercontent.goog hosts are not included.
+//   Exact AI Studio preview hosts observed for this project. Google does not
+//     document a stability guarantee or project identifier in preview hostnames;
+//     add only a newly verified exact hostname if a preview rotates. Other
+//     *.usercontent.goog hosts are not included.
 //   Exact Freebuff preview hosts observed for this workspace; other *.style.dev
 //     origins are not included.
 //   http(s)://localhost, 127.0.0.1, or ::1 — only when this request itself is
