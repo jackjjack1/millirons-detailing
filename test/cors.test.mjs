@@ -16,7 +16,7 @@ function call(path, {method = 'GET', origin, url} = {}) {
 
 function noStar(headers) {
   assert.notEqual(headers.get('access-control-allow-origin'), '*')
-  const joined = [...headers.entries()].map(([k, v]) => k + ':' + v).join('\\n')
+  const joined = [...headers.entries()].map(([k, v]) => k + ':' + v).join('\n')
   assert.equal(joined.includes('access-control-allow-origin: *'), false)
 }
 
@@ -86,7 +86,7 @@ test('state-changing methods require an origin, and the Stripe webhook does not'
 
 test('https session cookie is cross-site, and plain HTTP stays Lax', () => {
   const secure = sessionCookie('sid.sig', {secure: true, maxAge: 60})
-  assert.match(secure, /md_session=sid\\.sig/)
+  assert.match(secure, /md_session=sid\.sig/)
   assert.match(secure, /HttpOnly/)
   assert.match(secure, /SameSite=None/)
   assert.match(secure, /Secure/)
@@ -198,7 +198,7 @@ test('a wildcard from the handler is replaced with the request origin', async ()
   assert.equal(response.status, 401)
   assert.equal(response.headers.get('access-control-allow-origin'), PREVIEW)
   assert.equal(response.headers.get('access-control-allow-credentials'), 'true')
-  assert.match(response.headers.get('set-cookie'), /md_session=abc\\.def/)
+  assert.match(response.headers.get('set-cookie'), /md_session=abc\.def/)
   noStar(response.headers)
   const text = await response.text()
   assert.equal(text, '{"user":null}')

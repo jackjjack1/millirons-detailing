@@ -27,7 +27,7 @@ const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1'])
 const PAGES_SUFFIX = '.millirons-detailing.pages.dev'
 const PREVIEW_SUFFIX = '.scf.usercontent.goog'
 const FREEBUFF_PREVIEW_HOST = 'pv-3ed654dcaea0-f048e0d5-f335-4b5b-82b9-83447e59dfbe.style.dev'
-const PREVIEW_LABEL = /^[a-z0-9]{12,52}-h\\d{4,12}$/
+const PREVIEW_LABEL = /^[a-z0-9]{12,52}-h\d{4,12}$/
 const DNS_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 export const STATE_CHANGING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const WEBHOOK_PATH = '/api/stripe-webhook'
@@ -43,7 +43,7 @@ function parseOrigin(origin) {
 }
 
 function bareHost(host) {
-  return String(host || '').toLowerCase().replace(/^\\[|\\]$/g, '')
+  return String(host || '').toLowerCase().replace(/^\[|\]$/g, '')
 }
 
 function requestHost(request) {
