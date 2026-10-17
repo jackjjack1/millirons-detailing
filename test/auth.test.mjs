@@ -16,6 +16,7 @@ import {onRequestGet as photoFileGet, onRequestDelete as photoDelete} from '../f
 import {onRequestGet as docsGet, onRequestPost as docsPost} from '../functions/api/documents.js'
 import {onRequestGet as docFileGet} from '../functions/api/documents/[[path]].js'
 import {onRequestPost as viewAs} from '../functions/api/auth/view-as.js'
+import {onRequestPost as emailCheck} from '../functions/api/auth/email.js'
 import {onRequestPost as checkout} from '../functions/api/checkout.js'
 import {onRequestPost as opsPost} from '../functions/api/ops.js'
 import {onRequest as middleware} from '../functions/api/_middleware.js'
@@ -418,6 +419,181 @@ test('a customer or employee cannot use view as, and a forged flag does not esca
   assert.equal(allowed.status, 503)
   const bad = await data(await viewAs({request: req('/api/auth/view-as', {method: 'POST', cookie: jar(customer.cookie), body: {role: 'owner'}}), env}))
   assert.equal(bad.status, 403)
+})
+
+function legacyEmailRows(env) {
+  return storedRows(env, '_auth/email/').filter(row => !row.key.slice('_auth/email/'.length).includes('/'))
+}
+function rolePointers(env) {
+  return Object.fromEntries(storedRows(env, '_auth/email/')
+    .filter(row => row.key.slice('_auth/email/'.length).includes('/'))
+    .map(row => [row.key.split('/').pop(), row.value.id]))
+}
+function wipeRoleIndex(env) {
+  for (const row of storedRows(env, '_auth/email/')) {
+    if (row.key.slice('_auth/email/'.length).includes('/')) env.PHOTOS.store.delete(row.key)
+  }
+  env.PHOTOS.store.delete('_auth/meta/role-index-v1')
+}
+function passwordById(env) {
+  return Object.fromEntries(storedRows(env, '_auth/users/').map(row => [row.value.id, row.value.password]))
+}
+
+test('the same email can have a customer and an employee, and customer login cannot become admin', async () => {
+  const env = envOf()
+  const email = 'shared@millirons.test'
+  const admin = await data(await setupPost({request: req('/api/auth/setup', {method: 'POST', body: {name: 'Jordan Millirons', email, password: 'admin-pass-1', code: CODE}}), env}))
+  assert.equal(admin.status, 201)
+  assert.equal(admin.json.user.role, 'admin')
+  const legacy = legacyEmailRows(env)
+  assert.equal(legacy.length, 1)
+  assert.equal(legacy[0].value.id, admin.json.user.id)
+  const legacyBytes = JSON.stringify(legacy[0].value)
+
+  const employeeFree = await data(await emailCheck({request: req('/api/auth/email', {method: 'POST', body: {email, role: 'employee'}}), env}))
+  assert.equal(employeeFree.status, 200)
+  assert.equal(employeeFree.json.exists, false)
+  const hiddenAdmin = await data(await emailCheck({request: req('/api/auth/email', {method: 'POST', body: {email, role: 'admin'}}), env}))
+  assert.equal(hiddenAdmin.status, 400)
+
+  const customer = await data(await register({request: req('/api/auth/register', {method: 'POST', body: {name: 'Pat Customer', email, password: 'customer-pass-1', role: 'admin'}}), env}))
+  assert.equal(customer.status, 201)
+  assert.equal(customer.json.user.role, 'customer')
+  assert.notEqual(customer.json.user.id, admin.json.user.id)
+  const employee = await data(await apply({request: req('/api/auth/apply', {method: 'POST', body: {name: 'Pat Detailer', email: 'Shared@Millirons.test', password: 'employee-pass-1', phone: '4045550199', city: 'Decatur'}}), env}))
+  assert.equal(employee.status, 201)
+  assert.equal(employee.json.user.role, 'employee')
+  assert.equal(storedRows(env, '_auth/users/').length, 3)
+  assert.equal(JSON.stringify(legacyEmailRows(env)[0].value), legacyBytes)
+  assert.deepEqual(rolePointers(env), {
+    admin: admin.json.user.id,
+    customer: customer.json.user.id,
+    employee: employee.json.user.id,
+  })
+  const hashes = passwordById(env)
+  assert.equal(hashes[admin.json.user.id].algo, 'PBKDF2-SHA-256')
+  assert.notDeepEqual(hashes[customer.json.user.id], hashes[admin.json.user.id])
+  assert.notDeepEqual(hashes[employee.json.user.id], hashes[customer.json.user.id])
+
+  const employeeTaken = await data(await emailCheck({request: req('/api/auth/email', {method: 'POST', body: {email, role: 'employee'}}), env}))
+  assert.equal(employeeTaken.json.exists, true)
+  const dupCustomer = await data(await register({request: req('/api/auth/register', {method: 'POST', body: {name: 'Other', email, password: 'customer-pass-9'}}), env}))
+  assert.equal(dupCustomer.status, 409)
+  const dupEmployee = await data(await apply({request: req('/api/auth/apply', {method: 'POST', body: {name: 'Other', email, password: 'employee-pass-9', phone: '4045550100', city: 'Decatur'}}), env}))
+  assert.equal(dupEmployee.status, 409)
+  assert.equal(storedRows(env, '_auth/users/').length, 3)
+
+  const asCustomer = await data(await login({request: req('/api/auth/login', {method: 'POST', body: {email, password: 'customer-pass-1', role: 'customer'}}), env}))
+  assert.equal(asCustomer.status, 200)
+  assert.equal(asCustomer.json.user.role, 'customer')
+  assert.equal(asCustomer.json.user.id, customer.json.user.id)
+  assert.equal(asCustomer.json.user.password, undefined)
+  const meCustomer = await data(await meGet({request: req('/api/auth/me', {cookie: jar(asCustomer.cookie)}), env}))
+  assert.equal(meCustomer.json.user.role, 'customer')
+  assert.equal(meCustomer.json.user.actorRole, undefined)
+  assert.equal(meCustomer.json.user.preview, undefined)
+  const customerDenied = await data(await accountsGet({request: req('/api/auth/accounts', {cookie: jar(asCustomer.cookie)}), env}))
+  assert.equal(customerDenied.status, 403)
+
+  const sneak = await data(await login({request: req('/api/auth/login', {method: 'POST', body: {email, password: 'admin-pass-1', role: 'customer'}}), env}))
+  assert.equal(sneak.status, 401)
+  assert.equal(sneak.cookie, '')
+  const sneakAdmin = await data(await login({request: req('/api/auth/login', {method: 'POST', body: {email, password: 'customer-pass-1', role: 'admin'}}), env}))
+  assert.equal(sneakAdmin.status, 401)
+  assert.equal(sneakAdmin.cookie, '')
+
+  const asAdmin = await data(await login({request: req('/api/auth/login', {method: 'POST', body: {email, password: 'admin-pass-1', role: 'admin'}}), env}))
+  assert.equal(asAdmin.status, 200)
+  assert.equal(asAdmin.json.user.role, 'admin')
+  assert.equal(asAdmin.json.user.id, admin.json.user.id)
+  const asEmployee = await data(await login({request: req('/api/auth/login', {method: 'POST', body: {email, password: 'employee-pass-1', role: 'employee'}}), env}))
+  assert.equal(asEmployee.status, 200)
+  assert.equal(asEmployee.json.user.role, 'employee')
+  assert.equal(asEmployee.json.user.id, employee.json.user.id)
+
+  for (const [id, role] of [[customer.json.user.id, 'customer'], [employee.json.user.id, 'employee'], [admin.json.user.id, 'admin']]) {
+    const session = storedRows(env, '_auth/sessions/').find(row => row.value.userId === id && row.value.role === role)
+    assert.ok(session)
+    assert.equal(session.value.password, undefined)
+  }
+  assert.deepEqual(passwordById(env), hashes)
+})
+
+test('a shared password asks which role to open and does not grant admin by default', async () => {
+  const env = envOf()
+  const email = 'both@millirons.test'
+  const admin = await data(await setupPost({request: req('/api/auth/setup', {method: 'POST', body: {name: 'Jordan Millirons', email, password: 'shared-pass-1', code: CODE}}), env}))
+  const customer = await data(await register({request: req('/api/auth/register', {method: 'POST', body: {name: 'Pat Customer', email, password: 'shared-pass-1'}}), env}))
+  const employee = await data(await apply({request: req('/api/auth/apply', {method: 'POST', body: {name: 'Pat Detailer', email, password: 'shared-pass-1', phone: '4045550199', city: 'Decatur'}}), env}))
+  const before = storedRows(env, '_auth/sessions/').length
+  const ambiguous = await data(await login({request: req('/api/auth/login', {method: 'POST', body: {email, password: 'shared-pass-1'}}), env}))
+  assert.equal(ambiguous.status, 409)
+  assert.equal(ambiguous.cookie, '')
+  assert.equal(ambiguous.json.chooseRole, true)
+  assert.deepEqual(ambiguous.json.roles, ['customer', 'employee', 'admin'])
+  assert.equal(ambiguous.json.user, undefined)
+  assert.equal(JSON.stringify(ambiguous.json).includes('PBKDF2'), false)
+  assert.equal(storedRows(env, '_auth/sessions/').length, before)
+  const picked = await data(await login({request: req('/api/auth/login', {method: 'POST', body: {email, password: 'shared-pass-1', role: 'customer'}}), env}))
+  assert.equal(picked.status, 200)
+  assert.equal(picked.json.user.role, 'customer')
+  assert.equal(picked.json.user.id, customer.json.user.id)
+  assert.notEqual(picked.json.user.id, admin.json.user.id)
+  const me = await data(await meGet({request: req('/api/auth/me', {cookie: jar(picked.cookie)}), env}))
+  assert.equal(me.json.user.role, 'customer')
+  assert.equal(me.json.user.id, customer.json.user.id)
+  const staff = await data(await login({request: req('/api/auth/login', {method: 'POST', body: {email, password: 'shared-pass-1', role: 'employee'}}), env}))
+  assert.equal(staff.json.user.id, employee.json.user.id)
+  assert.equal(staff.json.user.role, 'employee')
+})
+
+test('existing accounts keep their passwords after the role index is rebuilt', async () => {
+  const env = envOf()
+  const email = 'legacy@millirons.test'
+  const admin = await data(await setupPost({request: req('/api/auth/setup', {method: 'POST', https: true, body: {name: 'Jordan Millirons', email, password: 'admin-pass-1', code: CODE}}), env}))
+  const customer = await data(await register({request: req('/api/auth/register', {method: 'POST', body: {name: 'Pat Customer', email: 'pat@ex.test', password: 'customer-pass-1'}}), env}))
+  const employee = await data(await apply({request: req('/api/auth/apply', {method: 'POST', body: {name: 'Chris Lane', email: 'chris@millirons.test', password: 'employee-pass-1', phone: '4045550199', city: 'Decatur'}}), env}))
+  const hashes = passwordById(env)
+  const legacyBefore = legacyEmailRows(env).map(row => ({key: row.key, value: {...row.value}}))
+  assert.equal(legacyBefore.length, 3)
+  const userKeys = storedRows(env, '_auth/users/').map(row => row.key).sort()
+
+  wipeRoleIndex(env)
+  assert.deepEqual(rolePointers(env), {})
+  for (const row of storedRows(env, '_auth/sessions/')) {
+    delete row.value.role
+    env.PHOTOS.store.get(row.key).bytes = new TextEncoder().encode(JSON.stringify(row.value))
+  }
+  const stillAdmin = await data(await meGet({request: req('/api/auth/me', {cookie: jar(admin.cookie)}), env}))
+  assert.equal(stillAdmin.status, 200)
+  assert.equal(stillAdmin.json.user.role, 'admin')
+  assert.equal(stillAdmin.json.user.id, admin.json.user.id)
+  const rebound = storedRows(env, '_auth/sessions/').find(row => row.value.userId === admin.json.user.id)
+  assert.equal(rebound.value.role, 'admin')
+
+  wipeRoleIndex(env)
+  const adminAgain = await data(await login({request: req('/api/auth/login', {method: 'POST', body: {email, password: 'admin-pass-1', role: 'admin'}}), env}))
+  const customerAgain = await data(await login({request: req('/api/auth/login', {method: 'POST', body: {email: 'pat@ex.test', password: 'customer-pass-1', role: 'customer'}}), env}))
+  const employeeAgain = await data(await login({request: req('/api/auth/login', {method: 'POST', body: {email: 'chris@millirons.test', password: 'employee-pass-1', role: 'employee'}}), env}))
+  assert.equal(adminAgain.status, 200)
+  assert.equal(customerAgain.status, 200)
+  assert.equal(employeeAgain.status, 200)
+  assert.equal(adminAgain.json.user.id, admin.json.user.id)
+  assert.equal(customerAgain.json.user.id, customer.json.user.id)
+  assert.equal(employeeAgain.json.user.id, employee.json.user.id)
+  assert.equal(adminAgain.json.user.role, 'admin')
+  assert.equal(customerAgain.json.user.role, 'customer')
+  assert.equal(employeeAgain.json.user.role, 'employee')
+  assert.deepEqual(passwordById(env), hashes)
+  assert.deepEqual(legacyEmailRows(env).map(row => ({key: row.key, value: row.value})), legacyBefore)
+  assert.deepEqual(storedRows(env, '_auth/users/').map(row => row.key).sort(), userKeys)
+  assert.equal(rolePointers(env).admin, admin.json.user.id)
+  assert.equal(rolePointers(env).customer, customer.json.user.id)
+  assert.equal(rolePointers(env).employee, employee.json.user.id)
+  assert.match(admin.cookie, /HttpOnly/)
+  assert.match(admin.cookie, /SameSite=None/)
+  assert.match(admin.cookie, /Secure/)
+  assert.match(admin.cookie, /Partitioned/)
 })
 
 test('auth refuses to run without a long SESSION_SECRET', async () => {

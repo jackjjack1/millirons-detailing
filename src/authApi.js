@@ -19,6 +19,10 @@ async function api(path, {method = 'GET', body} = {}) {
   if (!response.ok) {
     const error = new Error(data.error || 'Request failed.')
     error.status = response.status
+    if (data.chooseRole) {
+      error.chooseRole = true
+      error.roles = Array.isArray(data.roles) ? data.roles : []
+    }
     throw error
   }
   return data
@@ -45,7 +49,7 @@ export async function authMe() {
   return data.user || null
 }
 export const authRegister = body => api('/api/auth/register', {method: 'POST', body})
-export const authEmail = email => api('/api/auth/email', {method: 'POST', body: {email}})
+export const authEmail = (email, role) => api('/api/auth/email', {method: 'POST', body: role ? {email, role} : {email}})
 export const authApply = body => api('/api/auth/apply', {method: 'POST', body})
 export const authPatchMe = body => api('/api/auth/me', {method: 'PATCH', body})
 export const authAccounts = () => api('/api/auth/accounts')

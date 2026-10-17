@@ -82,34 +82,44 @@ function PaySuccess({q}){const sid=new URLSearchParams(q).get('session_id');cons
  return <section className="sec light top center">{st.s==='checking'?<><h1 className="h1s">Confirming payment…</h1><p className="sub">Verifying with Stripe.</p></>:st.s==='paid'?<><div className="check">✓</div><h1 className="h1s">Paid. You're booked.</h1><p className="sub">Confirmation <b>{st.d.bookingId}</b> · {money(st.d.amount)} paid in full</p><a className="pill" href={'#/booking/'+st.d.bookingId}>View booking</a></>:st.s==='pending'?<><h1 className="h1s">Payment pending.</h1><p className="sub">Stripe hasn’t confirmed payment yet{st.d?.method==='affirm'?' (Affirm can take a moment)':''}. Your booking {st.d?.bookingId} stays “Awaiting payment” until it does.</p><a className="pill" href={'#/booking/success?session_id='+sid}>Check again</a></>:<><h1 className="h1s">Couldn’t verify payment.</h1><p className="sub">{st.e}</p><a className="pill" href="#/book">Back to booking</a></>}</section>}
 function Join(){const[s,setS]=useState(false);const sub=e=>{e.preventDefault();SET('md_applicants',[...LS('md_applicants',[]),Object.fromEntries(new FormData(e.target))]);setS(true)}
  return <><section className="sec dark top center"><h1 className="h1s">Your skills. Your schedule.</h1><p className="sub">Interested in detailing with {BRAND}? Tell us about yourself. This is an interest form only — team accounts are invite-only, and we’ll email you an invite if it’s a fit.</p></section><section className="sec light">{s?<div className="center"><div className="check">✓</div><h2>Thanks — we got it.</h2><p className="sub center">We'll be in touch (demo).</p></div>:<form className="panel" onSubmit={sub}><div className="two"><label>Full name<input name="name" required/></label><label>Email<input name="email" type="email" required/></label><label>Phone<input name="phone" required/></label><label>Neighborhood / city<input name="city" placeholder="e.g. Decatur" required/></label><label>Years of experience<input name="years" type="number" min="0" required/></label><label>Own equipment?<select name="equip"><option>Yes, full mobile rig</option><option>Partial</option><option>No</option></select></label></div><label>Services offered<input name="services" placeholder="Interior, ceramic, paint correction…"/></label><label>About you<textarea name="bio"/></label><button className="pill">Send interest form</button></form>}</section></>}
-function Login({setUser,q}){const r0=new URLSearchParams(q).get('role');const[role,setRole]=useState(['customer','employee','admin'].includes(r0)?r0:'customer');const[isNew,setIsNew]=useState(false);const[name,setName]=useState('');const[em,setEm]=useState('');const[pw,setPw]=useState('');const[code,setCode]=useState('');const[err,setErr]=useState('');const[busy,setBusy]=useState(false);const[ready,setReady]=useState(false);const[adminExists,setAdminExists]=useState(true);const[setupEnabled,setSetupEnabled]=useState(false)
+const LOGIN_ROLES=['customer','employee','admin']
+const ROLE_LABEL={customer:'Customer',employee:'Employee',admin:'Admin'}
+function roleFromVisit(q){const asked=new URLSearchParams(q||'').get('role');if(LOGIN_ROLES.includes(asked))return asked;let from='';try{from=sessionStorage.getItem('md_login_from')||''}catch{};if(from==='/join')return 'employee';if(from==='/book'||from.startsWith('/booking/'))return 'customer';return ''}
+function Login({setUser,q}){const[role,setRole]=useState(()=>roleFromVisit(q));const[isNew,setIsNew]=useState(false);const[name,setName]=useState('');const[em,setEm]=useState('');const[pw,setPw]=useState('');const[code,setCode]=useState('');const[err,setErr]=useState('');const[choices,setChoices]=useState([]);const[busy,setBusy]=useState(false);const[ready,setReady]=useState(false);const[adminExists,setAdminExists]=useState(true);const[setupEnabled,setSetupEnabled]=useState(false)
  useEffect(()=>{let on=true;authSetupStatus().then(d=>{if(!on)return;setAdminExists(!!d.adminExists);setSetupEnabled(!!d.setupEnabled)}).catch(()=>{}).finally(()=>{if(on)setReady(true)});return()=>{on=false}},[])
  const creatingAdmin=role==='admin'&&ready&&!adminExists&&setupEnabled
+ const finish=data=>{localStorage.removeItem('md_session');setUser(data.user);location.hash='/dashboard'}
+ const signInAs=async picked=>{setBusy(true);setErr('');try{const data=await authLogin({email:em.trim(),password:pw,role:picked});if(!data?.user||data.user.role!==picked)return setErr('Could not sign in.');finish(data)}catch(ex){setErr(ex.message||'Could not sign in.')}finally{setBusy(false)}}
  const go=async e=>{e.preventDefault();setErr('')
   if(!em.trim()||!pw)return setErr('Please enter both email and password.')
   if(role==='customer'&&isNew&&!name.trim())return setErr('Please enter your full name.')
   if(creatingAdmin&&!name.trim())return setErr('Please enter your name to initialize the admin account.')
   if(creatingAdmin&&!code.trim())return setErr('Enter the one-time setup code.')
   if((role==='customer'&&isNew)||creatingAdmin){if(pw.length<8)return setErr('Password must be at least 8 characters.')}
+  if(choices.length&&!LOGIN_ROLES.includes(role))return setErr('That password matches more than one account. Choose which one to use.')
   setBusy(true)
   try{
    const body={email:em.trim(),password:pw,name:name.trim()}
-   const data=role==='customer'&&isNew?await authRegister(body):creatingAdmin?await authSetup({...body,code:code.trim()}):await authLogin({email:body.email,password:pw,role})
-   localStorage.removeItem('md_session');setUser(data.user);location.hash='/dashboard'
-  }catch(ex){setErr(ex.message||'Could not sign in.')}
+   const data=role==='customer'&&isNew?await authRegister(body):creatingAdmin?await authSetup({...body,code:code.trim()}):await authLogin(role?{email:body.email,password:pw,role}:{email:body.email,password:pw})
+   if(data?.chooseRole){setChoices((data.roles||[]).filter(r=>LOGIN_ROLES.includes(r)));return setErr('That password matches more than one account. Choose which one to use.')}
+   if(!data?.user)return setErr('Could not sign in.')
+   finish(data)
+  }catch(ex){if(ex.chooseRole){setChoices((ex.roles||[]).filter(r=>LOGIN_ROLES.includes(r)));setErr(ex.message||'That password matches more than one account. Choose which one to use.')}else{setChoices([]);setErr(ex.message||'Could not sign in.')}}
   finally{setBusy(false)}}
- return <section className="sec light top center"><h1 className="h1s">Sign in.</h1><div className="seg">{['customer','employee','admin'].map(r=><button type="button" key={r} className={role===r?'on':''} onClick={()=>{setRole(r);setErr('');setIsNew(false)}}>{r[0].toUpperCase()+r.slice(1)}</button>)}</div>
+ const pick=r=>{setRole(r);setIsNew(false);setErr('');if(choices.includes(r)&&em.trim()&&pw)signInAs(r)}
+ return <section className="sec light top center"><h1 className="h1s">Sign in.</h1><div className="seg" role="group" aria-label="Account role">{LOGIN_ROLES.map(r=><button type="button" key={r} className={role===r?'on':''} aria-pressed={role===r} disabled={busy||(choices.length>0&&!choices.includes(r))} onClick={()=>pick(r)}>{ROLE_LABEL[r]}</button>)}</div>
  <form className="panel left" onSubmit={go}>
-  {role==='customer'&&<div className="seg full" style={{marginBottom:'18px'}}><button type="button" className={!isNew?'on':''} onClick={()=>setIsNew(false)}>Sign in</button><button type="button" className={isNew?'on':''} onClick={()=>setIsNew(true)}>Create account</button></div>}
+  {role==='customer'&&!choices.length&&<div className="seg full" style={{marginBottom:'18px'}}><button type="button" className={!isNew?'on':''} onClick={()=>setIsNew(false)}>Sign in</button><button type="button" className={isNew?'on':''} onClick={()=>setIsNew(true)}>Create account</button></div>}
   {creatingAdmin&&<p className="note leftn" style={{marginBottom:'16px'}}>No admin account found. Fill in your details below to set up your primary admin account.</p>}
   {role==='admin'&&ready&&!adminExists&&!setupEnabled&&<p className="note leftn" style={{marginBottom:'16px'}}>Admin setup isn’t available yet. Ask the site owner to finish server setup, then reload this page.</p>}
+  {choices.length>0?<p className="note leftn" style={{marginBottom:'16px'}}>That password matches more than one account. Choose which one to use.</p>:<p className="muted small" style={{margin:'-6px 0 16px'}}>Choose Customer, Employee, or Admin. Opened from booking or the detailer application, that role is selected for you.</p>}
   {(isNew||creatingAdmin)&&<label>Full name<input name="name" value={name} placeholder="e.g. Jordan Millirons" onChange={e=>setName(e.target.value)} required/></label>}
-  <label>Email<input name="email" type="email" value={em} placeholder="you@example.com" onChange={e=>setEm(e.target.value)} required/></label>
-  <label>Password<input name="password" type="password" value={pw} placeholder="••••••••" onChange={e=>setPw(e.target.value)} required/></label>
+  <label>Email<input name="email" type="email" value={em} placeholder="you@example.com" onChange={e=>{setEm(e.target.value);setChoices([])}} required/></label>
+  <label>Password<input name="password" type="password" value={pw} placeholder="••••••••" onChange={e=>{setPw(e.target.value);setChoices([])}} required/></label>
   {creatingAdmin&&<label>Setup code<input name="setupCode" type="password" value={code} placeholder="One-time code" autoComplete="off" onChange={e=>setCode(e.target.value)} required/></label>}
   {err&&<p className="err">{err}</p>}
   <button className="pill wide" type="submit" disabled={!ready||busy}>{role==='customer'&&isNew?'Create account':creatingAdmin?'Create admin account':'Sign in'}</button>
-  {role==='employee'&&<p className="muted small" style={{marginTop:'18px',textAlign:'center'}}>Employee accounts are created via invitation. If you applied, check your status with the link sent to your email.</p>}
+  {role==='employee'&&<p className="muted small" style={{marginTop:'18px',textAlign:'center'}}>Employee accounts are created via invitation or the detailer application. The same email can also be a customer.</p>}
  </form></section>}
 const VIEW_AS=[['admin','Admin'],['customer','Customer'],['employee','Employee']]
 function ViewAsBar({user,setUser}){const realAdmin=user?.role==='admin'||user?.actorRole==='admin';const[err,setErr]=useState('');const[busy,setBusy]=useState(false)
@@ -157,6 +167,7 @@ function Dashboard({user,setUser}){const[tab,setTab]=useState(null);const[area,s
  return <section className="sec light top"><div className="dash-h"><div><p className="eyebrow">{user.role[0].toUpperCase()+user.role.slice(1)} dashboard</p><h1 className="h1s">Hi, {user.name.split(' ')[0]}.</h1></div><button className="link" onClick={logout}>Sign out</button></div>{body}</section>}
 if(new URLSearchParams(location.search).get('preview')==='phone'&&window.top===window)location.replace('/phone.html')
 export default function App(){const h=useHash();const[path,q='']=h.split('?');const[user,setUser]=useState(null);const[authReady,setAuthReady]=useState(false);useReveal(h)
+ useEffect(()=>{const from=(h.split('?')[0]||'/').split('#')[0];if(from&&from!=='/login'){try{sessionStorage.setItem('md_login_from',from)}catch{}}},[h])
  useEffect(()=>{let on=true;authMe().then(u=>{if(on)setUser(u||null)}).catch(()=>{if(on)setUser(null)}).finally(()=>{if(on)setAuthReady(true)});return()=>{on=false}},[])
  useEffect(()=>{const m=h.match(/#(\w+)$/);if(m)setTimeout(()=>document.getElementById(m[1])?.scrollIntoView({behavior:'smooth'}),60)},[h])
  let page=<Home/>;const pp=path.split('#')[0]
