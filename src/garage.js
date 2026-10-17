@@ -9,13 +9,14 @@ export const COLORS=[
   {id:'green',label:'Green',hex:'#34c759',paint:'green'},
   {id:'beige',label:'Beige',hex:'#c4a882',paint:'beige'},
 ]
+// Body classes for the garage. Prices and size surcharges live in src/data.js.
 export const TIERS=[
-  {id:'compact',name:'Compact / Coupe',add:0},
-  {id:'sedan',name:'Sedan / Hatch',add:15},
-  {id:'suv',name:'SUV / Crossover',add:35},
-  {id:'truck',name:'Truck / Pickup',add:45},
-  {id:'van',name:'Van / 3-Row',add:55},
-  {id:'xl',name:'XL / Oversized',add:75},
+  {id:'compact',name:'Compact / Coupe'},
+  {id:'sedan',name:'Sedan / Hatch'},
+  {id:'suv',name:'SUV / Crossover'},
+  {id:'truck',name:'Truck / Pickup'},
+  {id:'van',name:'Van / 3-Row'},
+  {id:'xl',name:'XL / Oversized'},
 ]
 export function mapBody(body='',make='',model=''){
   const t=`${body} ${model}`.toLowerCase()

@@ -52,12 +52,12 @@ footer{background:#f5f5f7;border-top:1px solid #d2d2d7;padding:40px 22px;text-al
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:22px}
 .incl{padding-left:18px;color:#6e6e73;line-height:1.7;margin:10px 0}.muted{color:#6e6e73}
 .affirm-line{font-size:13px!important;margin-top:-8px!important}
-.tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}.tier{background:#1d1d1f;border-radius:20px;padding:24px;text-align:center;display:flex;flex-direction:column;gap:6px}.tier span{color:#a1a1a6;font-size:22px;font-weight:600}
+.tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}.tier{background:#1d1d1f;border-radius:20px;padding:24px;text-align:center;display:flex;flex-direction:column;gap:8px}.tier span{color:#a1a1a6;font-size:15px;font-weight:500;line-height:1.35}
 .hours{max-width:480px!important;margin:0 auto;text-align:left}
 .faq{max-width:780px!important}details{border-bottom:1px solid #d2d2d7;padding:22px 0}summary{font-size:21px;font-weight:600;cursor:pointer;list-style:none}summary::after{content:"+";float:right;font-weight:300}details[open] summary::after{content:"−"}details p{color:#6e6e73;margin-top:12px;line-height:1.5;font-size:17px}
 .opt small{color:#86868b;font-size:13px;line-height:1.35}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}.two.three{grid-template-columns:1fr 1fr 1fr}.two.inline{gap:12px;margin:16px auto}textarea{display:block;width:100%;margin-top:6px;padding:14px 16px;border:1px solid #d2d2d7;border-radius:12px;font:inherit;font-size:17px;min-height:90px}
-.summary.flat{box-shadow:none;padding:0;margin:0 0 20px}.row{gap:16px}.row b{text-align:right;max-width:65%}.tot b{font-size:22px}
+.summary.flat{box-shadow:none;padding:0;margin:0 0 20px}.row{gap:16px}.row b{text-align:right;max-width:65%}.row.surcharge{background:#f5f5f7;margin:0 -8px;padding:12px 8px;border-radius:12px}.tot b{font-size:22px}
 .seg{display:inline-flex;background:#e8e8ed;border-radius:12px;padding:3px;margin:16px auto 24px}.seg.full{display:flex}.seg.full button{flex:1}.seg button{border:0;background:none;padding:9px 26px;border-radius:9px;font:inherit;font-size:15px;cursor:pointer;color:#1d1d1f}.seg button.on{background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.12);font-weight:600}
 .paynote{font-weight:600;margin-top:10px}.mock{font-size:13px;color:#6e6e73;background:#f5f5f7;border-radius:12px;padding:12px 14px;margin-top:8px}
 .affirm{display:flex;flex-direction:column;gap:12px;margin-bottom:12px}.affirm-logo{font-weight:700;font-size:28px;letter-spacing:-.04em}.affirm small{color:#86868b}
