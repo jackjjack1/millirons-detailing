@@ -16,15 +16,16 @@ const total=(list,from,to=Infinity,now=Date.now())=>list.reduce((s,x)=>{const a=
 
 export function TimeClock({user}){const emp=user.detailer;const[all,setAll]=useState(shifts);const[note,setNote]=useState('');const[now,setNow]=useState(Date.now())
  useEffect(()=>{const i=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(i)},[])
- const mine=all.filter(s=>s.emp===emp).sort((a,b)=>b.in-a.in),open=mine.find(s=>!s.out)
- const save=v=>{setAll(v);SET('md_shifts',v)}
- const checkIn=()=>{if(shifts().some(s=>s.emp===emp&&!s.out))return;const s={id:'S-'+Date.now().toString(36),emp,name:user.name,in:Date.now(),out:null,noteIn:note.trim(),noteOut:'',edits:[]};save([...shifts(),s]);audit(user,'Checked in',`${t(s.in)}${s.noteIn?' — '+s.noteIn:''}`);setNote('')}
- const checkOut=()=>{const o=Date.now();save(shifts().map(s=>s.id===open.id?{...s,out:o,noteOut:note.trim()}:s));audit(user,'Checked out',`${t(open.in)}–${t(o)} (${dur(o-open.in)})${note.trim()?' — '+note.trim():''}`);setNote('')}
+ const mine=all.filter(s=>s.emp===emp).sort((a,b)=>b.in-a.in),open=mine.find(s=>!s.out),preview=!!user?.preview
+ const save=v=>{if(preview)return;setAll(v);SET('md_shifts',v)}
+ const checkIn=()=>{if(preview||shifts().some(s=>s.emp===emp&&!s.out))return;const s={id:'S-'+Date.now().toString(36),emp,name:user.name,in:Date.now(),out:null,noteIn:note.trim(),noteOut:'',edits:[]};save([...shifts(),s]);audit(user,'Checked in',`${t(s.in)}${s.noteIn?' — '+s.noteIn:''}`);setNote('')}
+ const checkOut=()=>{if(preview||!open)return;const o=Date.now();save(shifts().map(s=>s.id===open.id?{...s,out:o,noteOut:note.trim()}:s));audit(user,'Checked out',`${t(open.in)}–${t(o)} (${dur(o-open.in)})${note.trim()?' — '+note.trim():''}`);setNote('')}
  const today=total(mine,sod(now),Infinity,now),week=total(mine,sow(now),Infinity,now)
  return <><div className={'clock card flat'+(open?' on':'')}><div className="ck-top"><div><p className="eyebrow">{new Date(now).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</p><div className="ck-now">{new Date(now).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit'})}</div></div><span className={'ck-pill'+(open?' on':'')}>{open?'● On shift':'Off shift'}</span></div>
   {open?<div className="ck-elapsed"><small>Checked in at {t(open.in)}{open.noteIn?` · “${open.noteIn}”`:''}</small><b>{(()=>{const s=Math.floor((now-open.in)/1000);return `${Math.floor(s/3600)}:${String(Math.floor(s/60)%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`})()}</b></div>:<p className="muted ck-hint">Tap Check in when you start your first job.</p>}
   <input className="ck-note" value={note} onChange={e=>setNote(e.target.value)} placeholder={open?'Note for check-out (optional)':'Note for check-in (optional)'}/>
-  {open?<button className="ck-btn out" onClick={checkOut}>Check out</button>:<button className="ck-btn" onClick={checkIn}>Check in</button>}
+  {preview&&<p className="muted ck-hint">Preview only. Clock punches are not saved in this view.</p>}
+  {open?<button className="ck-btn out" onClick={checkOut} disabled={preview}>Check out</button>:<button className="ck-btn" onClick={checkIn} disabled={preview}>Check in</button>}
   <div className="ck-stats"><div><b>{dur(today)}</b><span>Today</span></div><div><b>{dur(week)}</b><span>This week</span></div><div><b>{mine.filter(s=>s.in>=sow(now)).length}</b><span>Shifts this week</span></div></div></div>
   <h3 className="h3l">Recent shifts</h3><div className="tbl"><table><thead><tr><th>Date</th><th>In</th><th>Out</th><th>Hours</th><th>Notes</th></tr></thead><tbody>{mine.slice(0,10).map(s=><tr key={s.id}><td>{dstr(s.in)}</td><td>{t(s.in)}</td><td>{s.out?t(s.out):<span className="badge b-on">On shift</span>}</td><td>{dur((s.out??now)-s.in)}</td><td><small className="muted">{[s.noteIn,s.noteOut].filter(Boolean).join(' / ')}{s.edits?.length?` · corrected by admin`:''}</small></td></tr>)}</tbody></table></div></>}
 
@@ -34,7 +35,7 @@ export function Attendance({user}){const[all,setAll]=useState(shifts);const td=i
  const onNow=EMPS.map(e=>({...e,open:all.find(s=>s.emp===e.id&&!s.out)}))
  const tot=EMPS.map(e=>({...e,ms:total(all.filter(s=>s.emp===e.id),from,to,now)})).filter(e=>f.emp==='all'||e.id===f.emp)
  const toLocal=ts=>ts?new Date(ts-new Date(ts).getTimezoneOffset()*6e4).toISOString().slice(0,16):''
- const saveEdit=()=>{if(!ed.reason.trim())return alert('A reason is required.');const nin=new Date(ed.in).getTime(),nout=ed.out?new Date(ed.out).getTime():null;if(nout&&nout<=nin)return alert('Check-out must be after check-in.')
+ const saveEdit=()=>{if(user?.preview)return alert('Preview only. Switch back to Admin before editing attendance.');if(!ed.reason.trim())return alert('A reason is required.');const nin=new Date(ed.in).getTime(),nout=ed.out?new Date(ed.out).getTime():null;if(nout&&nout<=nin)return alert('Check-out must be after check-in.')
   const old=all.find(s=>s.id===ed.id);const v=all.map(s=>s.id===ed.id?{...s,in:nin,out:nout,edits:[...(s.edits||[]),{by:user.name,ts:Date.now(),reason:ed.reason.trim(),before:{in:old.in,out:old.out}}]}:s);setAll(v);SET('md_shifts',v)
   audit(user,'Attendance corrected',`${old.name} ${dstr(old.in)}: ${t(old.in)}–${old.out?t(old.out):'open'} → ${t(nin)}–${nout?t(nout):'open'} — ${ed.reason.trim()}`);setEd(null)}
  const exp=()=>csv(`attendance-${f.from}-to-${f.to}.csv`,list.map(s=>({employee:s.name,date:iso(s.in),check_in:new Date(s.in).toISOString(),check_out:s.out?new Date(s.out).toISOString():'',hours:hrs((s.out??now)-s.in),open:!s.out,note_in:s.noteIn,note_out:s.noteOut,corrections:(s.edits||[]).map(e=>`${e.by}: ${e.reason}`).join(' | ')})))

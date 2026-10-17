@@ -15,6 +15,10 @@ import {onRequestGet as photosGet, onRequestPost as photosPost} from '../functio
 import {onRequestGet as photoFileGet, onRequestDelete as photoDelete} from '../functions/api/photos/[[path]].js'
 import {onRequestGet as docsGet, onRequestPost as docsPost} from '../functions/api/documents.js'
 import {onRequestGet as docFileGet} from '../functions/api/documents/[[path]].js'
+import {onRequestPost as viewAs} from '../functions/api/auth/view-as.js'
+import {onRequestPost as checkout} from '../functions/api/checkout.js'
+import {onRequestPost as opsPost} from '../functions/api/ops.js'
+import {onRequest as middleware} from '../functions/api/_middleware.js'
 
 const SECRET = 'test-session-secret-must-be-32-characters'
 const CODE = 'test-setup-code'
@@ -86,10 +90,11 @@ async function toBytes(value) {
 function envOf(r2 = new MemoryR2(), extra = {}) {
   return {PHOTOS: r2, SESSION_SECRET: SECRET, ADMIN_SETUP_CODE: CODE, ...extra}
 }
-function req(path, {method = 'GET', body, cookie, https = false} = {}) {
+function req(path, {method = 'GET', body, cookie, https = false, origin} = {}) {
   const headers = new Headers()
   if (body !== undefined) headers.set('content-type', 'application/json')
   if (cookie) headers.set('cookie', cookie)
+  if (origin) headers.set('origin', origin)
   return new Request((https ? 'https://millironsdetailing.com' : 'http://127.0.0.1:8788') + path, {
     method,
     headers,
@@ -267,6 +272,152 @@ test('admin can approve an employee and the employee cannot approve themselves',
   const decided = await data(await accountsPatch({request: req('/api/auth/accounts', {method: 'PATCH', cookie: jar(admin.cookie), body: {email: 'chris@millirons.test', status: 'Approved', reason: ''}}), env}))
   assert.equal(decided.status, 200)
   assert.equal(decided.json.user.status, 'Approved')
+})
+
+function storedRows(env, prefix) {
+  return [...env.PHOTOS.store.entries()]
+    .filter(([key]) => key.startsWith(prefix))
+    .map(([key, row]) => ({key, value: JSON.parse(new TextDecoder().decode(row.bytes))}))
+}
+
+test('admin can preview as customer or employee, and switching back restores admin', async () => {
+  const env = envOf()
+  const created = await data(await setupPost({request: req('/api/auth/setup', {method: 'POST', https: true, body: {name: 'Jordan Millirons', email: 'admin@millirons.test', password: 'password1', code: CODE}}), env}))
+  const other = await data(await login({request: req('/api/auth/login', {method: 'POST', https: true, body: {email: 'admin@millirons.test', password: 'password1', role: 'admin'}}), env}))
+  const cookie = jar(created.cookie)
+  const otherCookie = jar(other.cookie)
+  const before = storedRows(env, '_auth/users/')
+  assert.equal(before.length, 1)
+  assert.equal(before[0].value.role, 'admin')
+  const password = before[0].value.password
+
+  const customerView = await data(await viewAs({request: req('/api/auth/view-as', {method: 'POST', cookie, body: {role: 'customer'}}), env}))
+  assert.equal(customerView.status, 200)
+  assert.equal(customerView.cookie, '')
+  assert.equal(customerView.json.user.role, 'customer')
+  assert.equal(customerView.json.user.viewAs, 'customer')
+  assert.equal(customerView.json.user.actorRole, 'admin')
+  assert.equal(customerView.json.user.preview, true)
+  assert.equal(customerView.json.user.email, 'admin@millirons.test')
+  assert.equal(customerView.json.user.id, created.json.user.id)
+  assert.equal(customerView.json.user.password, undefined)
+  const meCustomer = await data(await meGet({request: req('/api/auth/me', {cookie}), env}))
+  assert.equal(meCustomer.json.user.role, 'customer')
+  assert.equal(meCustomer.json.user.preview, true)
+  const untouched = await data(await meGet({request: req('/api/auth/me', {cookie: otherCookie}), env}))
+  assert.equal(untouched.json.user.role, 'admin')
+  assert.equal(untouched.json.user.preview, undefined)
+
+  const employeeView = await data(await viewAs({request: req('/api/auth/view-as', {method: 'POST', cookie, body: {role: 'employee'}}), env}))
+  assert.equal(employeeView.status, 200)
+  assert.equal(employeeView.json.user.role, 'employee')
+  assert.equal(employeeView.json.user.status, 'Approved')
+  assert.equal(employeeView.json.user.viewAs, 'employee')
+  assert.equal(employeeView.json.user.actorRole, 'admin')
+  assert.equal(employeeView.cookie, '')
+
+  const userAfter = storedRows(env, '_auth/users/')
+  assert.equal(userAfter.length, 1)
+  assert.equal(userAfter[0].value.role, 'admin')
+  assert.equal(userAfter[0].value.viewAs, undefined)
+  assert.deepEqual(userAfter[0].value.password, password)
+  const sessions = storedRows(env, '_auth/sessions/')
+  assert.equal(sessions.length, 2)
+  assert.equal(sessions.filter(row => row.value.viewAs === 'employee').length, 1)
+  assert.equal(sessions.every(row => row.value.password === undefined), true)
+  assert.match(created.cookie, /HttpOnly/)
+  assert.match(created.cookie, /SameSite=None/)
+  assert.match(created.cookie, /Secure/)
+  assert.match(created.cookie, /Partitioned/)
+
+  const checkoutBlocked = await data(await checkout({request: req('/api/checkout', {method: 'POST', cookie, body: {booking: {id: 'MD-TEST1'}}}), env}))
+  assert.equal(checkoutBlocked.status, 403)
+  assert.match(checkoutBlocked.json.error, /Preview only/)
+  const orderBlocked = await data(await opsPost({request: req('/api/ops', {method: 'POST', cookie, body: {resource: 'orders', action: 'create', order: {item: 'Soap', qty: 1}}}), env}))
+  assert.equal(orderBlocked.status, 403)
+  const approveBlocked = await data(await accountsPatch({request: req('/api/auth/accounts', {method: 'PATCH', cookie, body: {email: 'nobody@millirons.test', status: 'Approved'}}), env}))
+  assert.equal(approveBlocked.status, 403)
+  const photoBlocked = await photosPost({request: form('/api/photos', {cookie, fields: {bookingId: 'MD-1', group: 'before'}}), env})
+  assert.equal(photoBlocked.status, 403)
+  const loginBlocked = await data(await login({request: req('/api/auth/login', {method: 'POST', cookie, body: {email: 'admin@millirons.test', password: 'password1', role: 'admin'}}), env}))
+  assert.equal(loginBlocked.status, 403)
+  assert.equal(loginBlocked.cookie, '')
+
+  let reached = false
+  const middlewareBlocked = await data(await middleware({
+    request: req('/api/checkout', {method: 'POST', cookie, origin: 'http://127.0.0.1:5173', body: {booking: {id: 'MD-TEST1'}}}),
+    env,
+    async next() { reached = true; return new Response('{}', {status: 201, headers: {'content-type': 'application/json'}}) },
+  }))
+  assert.equal(reached, false)
+  assert.equal(middlewareBlocked.status, 403)
+  assert.equal(middlewareBlocked.json.error.includes('*'), false)
+
+  const restored = await data(await viewAs({request: req('/api/auth/view-as', {method: 'POST', cookie, body: {role: 'admin'}}), env}))
+  assert.equal(restored.status, 200)
+  assert.equal(restored.cookie, '')
+  assert.equal(restored.json.user.role, 'admin')
+  assert.equal(restored.json.user.viewAs, undefined)
+  assert.equal(restored.json.user.preview, undefined)
+  assert.equal(restored.json.user.actorRole, undefined)
+  assert.equal(restored.json.user.email, 'admin@millirons.test')
+  const meAdmin = await data(await meGet({request: req('/api/auth/me', {cookie}), env}))
+  assert.equal(meAdmin.json.user.role, 'admin')
+  assert.equal(meAdmin.json.user.preview, undefined)
+  assert.equal(storedRows(env, '_auth/sessions/').some(row => row.value.viewAs), false)
+  const checkoutOpen = await data(await checkout({request: req('/api/checkout', {method: 'POST', cookie, body: {booking: {id: 'MD-TEST1'}}}), env}))
+  assert.equal(checkoutOpen.status, 503)
+  const order = await data(await opsPost({request: req('/api/ops', {method: 'POST', cookie, body: {resource: 'orders', action: 'create', order: {item: 'Soap', qty: 1}}}), env}))
+  assert.equal(order.status, 201)
+  let reachedAfter = false
+  const middlewareOpen = await middleware({
+    request: req('/api/checkout', {method: 'POST', cookie, origin: 'http://127.0.0.1:5173', body: {}}),
+    env,
+    async next() { reachedAfter = true; return new Response('{}', {status: 201}) },
+  })
+  assert.equal(reachedAfter, true)
+  assert.equal(middlewareOpen.status, 201)
+  assert.equal(storedRows(env, '_auth/users/').length, 1)
+  assert.deepEqual(storedRows(env, '_auth/users/')[0].value.password, password)
+})
+
+test('a customer or employee cannot use view as, and a forged flag does not escalate', async () => {
+  const env = envOf()
+  const customer = await data(await register({request: req('/api/auth/register', {method: 'POST', body: {name: 'Pat Customer', email: 'pat@ex.test', password: 'password1', role: 'admin'}}), env}))
+  const employee = await data(await apply({request: req('/api/auth/apply', {method: 'POST', body: {name: 'Chris Lane', email: 'chris@millirons.test', password: 'password1', phone: '4045550199', city: 'Decatur'}}), env}))
+  const anon = await data(await viewAs({request: req('/api/auth/view-as', {method: 'POST', body: {role: 'admin'}}), env}))
+  assert.equal(anon.status, 401)
+  for (const [cookie, role] of [[jar(customer.cookie), 'customer'], [jar(employee.cookie), 'employee']]) {
+    const asAdmin = await data(await viewAs({request: req('/api/auth/view-as', {method: 'POST', cookie, body: {role: 'admin'}}), env}))
+    const asStaff = await data(await viewAs({request: req('/api/auth/view-as', {method: 'POST', cookie, body: {role: 'employee'}}), env}))
+    assert.equal(asAdmin.status, 403)
+    assert.equal(asStaff.status, 403)
+    assert.equal(asAdmin.cookie, '')
+    const me = await data(await meGet({request: req('/api/auth/me', {cookie}), env}))
+    assert.equal(me.json.user.role, role)
+    assert.equal(me.json.user.preview, undefined)
+    assert.equal(me.json.user.actorRole, undefined)
+    const accounts = await data(await accountsGet({request: req('/api/auth/accounts', {cookie}), env}))
+    assert.equal(accounts.status, 403)
+  }
+  const session = storedRows(env, '_auth/sessions/').find(row => row.value.userId === customer.json.user.id)
+  session.value.viewAs = 'admin'
+  env.PHOTOS.store.get(session.key).bytes = new TextEncoder().encode(JSON.stringify(session.value))
+  const forged = await data(await meGet({request: req('/api/auth/me', {cookie: jar(customer.cookie)}), env}))
+  assert.equal(forged.json.user.role, 'customer')
+  assert.equal(forged.json.user.preview, undefined)
+  const stillDenied = await data(await accountsGet({request: req('/api/auth/accounts', {cookie: jar(customer.cookie)}), env}))
+  assert.equal(stillDenied.status, 403)
+  let customerCheckout = false
+  const allowed = await middleware({
+    request: req('/api/checkout', {method: 'POST', cookie: jar(customer.cookie), origin: 'http://127.0.0.1:5173', body: {}}),
+    env,
+    async next() { customerCheckout = true; return new Response('{}', {status: 503}) },
+  })
+  assert.equal(customerCheckout, true)
+  assert.equal(allowed.status, 503)
+  const bad = await data(await viewAs({request: req('/api/auth/view-as', {method: 'POST', cookie: jar(customer.cookie), body: {role: 'owner'}}), env}))
+  assert.equal(bad.status, 403)
 })
 
 test('auth refuses to run without a long SESSION_SECRET', async () => {

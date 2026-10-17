@@ -1,4 +1,5 @@
-import {applyCors, isAllowedOrigin, preflightHeaders, requiresOriginCheck} from '../_lib/cors.js'
+import {applyCors, isAllowedOrigin, preflightHeaders, requiresOriginCheck, STATE_CHANGING} from '../_lib/cors.js'
+import {previewMutationBlock} from '../_lib/auth.js'
 
 function denied(message) {
   return new Response(JSON.stringify({error: message}), {
@@ -22,6 +23,11 @@ export async function onRequest(context) {
   // and is not cookie-authenticated, and Stripe does not send Origin.
   if (requiresOriginCheck(request) && !allowed) {
     return denied(origin ? 'This origin is not allowed.' : 'Origin is required.')
+  }
+
+  if (STATE_CHANGING.has(request.method)) {
+    const blocked = await previewMutationBlock(request, context.env)
+    if (blocked) return applyCors(blocked, allowed ? origin : '')
   }
 
   const response = await context.next()

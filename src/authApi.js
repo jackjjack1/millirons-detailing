@@ -31,6 +31,7 @@ export const authSetupStatus = () => api('/api/auth/setup')
 export const authSetup = body => api('/api/auth/setup', {method: 'POST', body})
 export const authLogin = body => api('/api/auth/login', {method: 'POST', body})
 export const authLogout = () => api('/api/auth/logout', {method: 'POST', body: {}})
+export const authViewAs = role => api('/api/auth/view-as', {method: 'POST', body: {role}})
 export async function authMe() {
   let response
   try {

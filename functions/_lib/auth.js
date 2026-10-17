@@ -320,7 +320,7 @@ function readCookie(request, name) {
   return ''
 }
 
-export async function currentUser(request, env) {
+export async function readSession(request, env) {
   const secret = secretValue(env, 'SESSION_SECRET')
   if (!env?.PHOTOS || secret.length < 32) return null
   const token = readCookie(request, COOKIE)
@@ -337,7 +337,56 @@ export async function currentUser(request, env) {
     await env.PHOTOS.delete(`_auth/sessions/${sid}`)
     return null
   }
-  return getUserById(env, session.userId)
+  const user = await getUserById(env, session.userId)
+  if (!user) return null
+  return {sid, session, user}
+}
+
+export async function currentUser(request, env) {
+  const loaded = await readSession(request, env)
+  return loaded?.user || null
+}
+
+// View as is stored only on the admin's session. It never changes the account,
+// the password, or the cookie. A non-admin session cannot opt into it.
+export function activePreview(user, session) {
+  if (!user || user.role !== 'admin') return null
+  return session?.viewAs === 'customer' || session?.viewAs === 'employee' ? session.viewAs : null
+}
+
+export function presentedUser(user, session) {
+  const pub = publicUser(user)
+  if (!pub) return null
+  const view = activePreview(user, session)
+  if (!view) return pub
+  const next = {...pub, role: view, viewAs: view, actorRole: 'admin', preview: true, status: 'Approved'}
+  delete next.van
+  delete next.profile
+  delete next.history
+  delete next.appId
+  delete next.docsStorage
+  delete next.hireId
+  delete next.inviteId
+  delete next.applicantNote
+  delete next.source
+  if (view === 'customer') delete next.detailer
+  else next.detailer = detailerSlug(pub.name)
+  return next
+}
+
+const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+const PREVIEW_OPEN = new Set(['/api/auth/view-as', '/api/auth/logout', '/api/stripe-webhook'])
+
+// While an admin is previewing another role, refuse writes. Reads still use the
+// real admin account. Logout and switching the view stay available.
+export async function previewMutationBlock(request, env) {
+  if (!request || !MUTATING.has(request.method)) return null
+  let path = ''
+  try { path = new URL(request.url).pathname } catch { return null }
+  if (PREVIEW_OPEN.has(path)) return null
+  const loaded = await readSession(request, env)
+  if (!activePreview(loaded?.user, loaded?.session)) return null
+  return json({error: 'Preview only. Switch back to Admin before changing anything.'}, 403)
 }
 
 export async function startSession(env, request, user) {
@@ -438,9 +487,25 @@ export async function logoutPost({request, env}) {
 
 export async function meGet({request, env}) {
   assertConfigured(env)
-  const user = await currentUser(request, env)
-  if (!user) return json({user: null}, 401)
-  return json({user: publicUser(user)})
+  const loaded = await readSession(request, env)
+  if (!loaded) return json({user: null}, 401)
+  return json({user: presentedUser(loaded.user, loaded.session)})
+}
+
+export async function viewAsPost({request, env}) {
+  const {user, error} = await requireAdmin(request, env)
+  if (error) return error
+  const body = await readJson(request)
+  const role = body.role
+  if (!['admin', 'customer', 'employee'].includes(role)) throw fail('Choose Admin, Customer, or Employee.', 400)
+  const loaded = await readSession(request, env)
+  if (!loaded || loaded.user.id !== user.id || loaded.user.role !== 'admin') throw fail('Sign in required.', 401)
+  const session = {...loaded.session}
+  if (role === 'admin') delete session.viewAs
+  else session.viewAs = role
+  delete session.password
+  await r2put(env, `_auth/sessions/${loaded.sid}`, session)
+  return json({user: presentedUser(loaded.user, session)})
 }
 
 export async function mePatch({request, env}) {
@@ -754,7 +819,11 @@ export async function hireDelete({request, env}) {
 
 export function guard(handler) {
   return async ctx => {
-    try { return await handler(ctx) }
+    try {
+      const blocked = await previewMutationBlock(ctx?.request, ctx?.env)
+      if (blocked) return blocked
+      return await handler(ctx)
+    }
     catch (e) {
       if (e?.status) return json({error: e.message}, e.status)
       console.error(e)

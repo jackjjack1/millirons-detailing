@@ -33,7 +33,7 @@ function GarageCard({v,selected,onSelect,onDefault,onRemove,compact}){
 export function useGarage(user){
  const[list,setList]=useState(()=>loadGarage(user))
  useEffect(()=>{setList(loadGarage(user))},[user?.email])
- const write=next=>{setList(next);saveGarage(user,next);return next}
+ const write=next=>{if(user?.preview)return list;setList(next);saveGarage(user,next);return next}
  const upsert=car=>{let next=[...list];const i=next.findIndex(x=>x.vin===car.vin);if(i>=0)next[i]={...next[i],...car};else{if(!next.length)car.isDefault=true;next=[car,...next]};return write(next)}
  const remove=id=>{const next=list.filter(x=>x.id!==id);if(next.length&&!next.some(x=>x.isDefault))next[0]={...next[0],isDefault:true};return write(next)}
  const setDefault=id=>write(list.map(x=>({...x,isDefault:x.id===id})))
@@ -53,14 +53,14 @@ function AddFlow({onDone,onCancel}){
 export function GaragePicker({user,value,onChange}){
  const {list,upsert,remove,setDefault}=useGarage(user);const[adding,setAdding]=useState(!list.length)
  useEffect(()=>{if(!value&&list.length){const d=list.find(x=>x.isDefault)||list[0];onChange(d)}},[list,value,onChange])
- return <div className="garage"><div className="garage-h"><h3>Your Garage</h3><button type="button" className="pill sm" onClick={()=>setAdding(true)}>+ Add vehicle</button></div>
+ return <div className="garage"><div className="garage-h"><h3>Your Garage</h3>{user?.preview?<p className="muted">Preview only. Vehicles are not saved in this view.</p>:<button type="button" className="pill sm" onClick={()=>setAdding(true)}>+ Add vehicle</button>}</div>
   {adding&&<AddFlow onCancel={()=>setAdding(false)} onDone={car=>{upsert(car);onChange(car);setAdding(false)}}/>}
   <div className="ggrid">{list.map(v=><GarageCard key={v.id} v={v} selected={value?.id===v.id||value?.vin===v.vin} onSelect={onChange} onDefault={setDefault} onRemove={id=>{remove(id);if(value?.id===id)onChange(null)}}/>)}</div>
   {!list.length&&!adding&&<p className="muted">No vehicles yet — add one with Scan VIN.</p>}</div>}
 
 export function GarageDashboard({user}){
  const {list,upsert,remove,setDefault}=useGarage(user);const[adding,setAdding]=useState(false)
- return <div className="garage dash"><div className="garage-h"><h2 className="h2l">My Garage</h2><button type="button" className="pill sm" onClick={()=>setAdding(true)}>+ Add vehicle</button></div>
+ return <div className="garage dash"><div className="garage-h"><h2 className="h2l">My Garage</h2>{user?.preview?<p className="muted">Preview only. Vehicles are not saved in this view.</p>:<button type="button" className="pill sm" onClick={()=>setAdding(true)}>+ Add vehicle</button>}</div>
   {adding&&<AddFlow onCancel={()=>setAdding(false)} onDone={car=>{upsert(car);setAdding(false)}}/>}
   <div className="ggrid">{list.map(v=><GarageCard key={v.id} v={v} onSelect={()=>{}} onDefault={setDefault} onRemove={remove}/>)}</div>
   {!list.length&&!adding&&<p className="muted">Scan a VIN to add your first car. Sample tip: try 1C4RJFAG0FC625797 (2015 Jeep Grand Cherokee).</p>}</div>}

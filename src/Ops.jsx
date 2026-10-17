@@ -98,7 +98,7 @@ export function OrderForm({user,prefill,onDone,inventory=getInv()}){const[shared
  const[f,setF]=useState(()=>prefill?{...blank,itemId:prefill.id,item:prefill.name,type:prefill.type,unit:prefill.unit,url:prefill.url||'',qty:Math.max(1,prefill.min*2-prefill.qty),urgency:prefill.qty===0?'Urgent':'High',note:`Reorder — on hand ${prefill.qty}, min ${prefill.min}`}:blank)
  const u=(k,v)=>setF(o=>({...o,[k]:v}))
  const pick=id=>{if(id==='__new'||id==='')return setF(o=>({...o,itemId:id,item:'',url:''}));const i=inv.find(x=>x.id===id);setF(o=>({...o,itemId:id,item:i.name,type:i.type,unit:i.unit,url:i.url||''}))}
- const submit=async e=>{e.preventDefault();if(!f.item||f.qty<1)return;const url=cleanUrl(f.url);const o={...f,url,qty:Number(f.qty),cost:f.cost===''?'':Number(f.cost),itemId:f.itemId==='__new'?'':f.itemId}
+ const submit=async e=>{e.preventDefault();if(user?.preview)return alert('Preview only. Switch back to Admin before requesting supplies.');if(!f.item||f.qty<1)return;const url=cleanUrl(f.url);const o={...f,url,qty:Number(f.qty),cost:f.cost===''?'':Number(f.cost),itemId:f.itemId==='__new'?'':f.itemId}
   try{const result=await opsAction('orders','create',{order:o});audit(user,'Order requested',`${result.order.id}: ${o.qty} ${o.unit} ${o.item} (${o.urgency})`);setF(blank);onDone?.(result.order)}catch(ex){alert(ex.message)}}
  const isNew=f.itemId==='__new'||f.itemId==='', cleanHref=cleanUrl(f.url)
  return <form className="panel opsform" onSubmit={submit}><h3>{prefill?'Reorder low-stock item':'Request supplies'}</h3>
