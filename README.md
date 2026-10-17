@@ -4,6 +4,8 @@ Mobile car-detailing booking site for Atlanta, GA. The interface is a black-and-
 
 Customers book a visit: service, add-ons, vehicle, date and time, address, and contact. Payment is upfront. The booking screen says to pay in full today, with no deposits. Live checkout sends the full amount through Stripe Checkout. Affirm pay-over-time is offered on that Stripe screen when the booking is $50 or more; the customer can pay over time, and Affirm pays the booking in full. If Stripe is not configured, the form stays in a labeled demo mode and does not charge a card.
 
+Package and add-on prices live in `src/data.js`. `quoteBooking()` is the only calculation: sedan / coupe is the base rate, and SUV or truck size adds a surcharge to the package only. Add-ons, including Touchless wash, keep the same price on every package. `POST /api/checkout` charges that quote and ignores any total sent by the browser.
+
 Employees attach before and after photos to a job. Photos are saved on the device and uploaded to the `PHOTOS` R2 bucket through `/api/photos`.
 
 Admins and employees have a signed-in dashboard. Admin supplies tools include operations inventory, supply orders, and stock counts, shared through `/api/ops`. That dashboard also shows bookings, detailer applications, employee invites, the team, attendance, booking links, and an audit log. Employees have a time clock, assigned jobs, a personal booking link, and supply requests.

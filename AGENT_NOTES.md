@@ -24,6 +24,10 @@ This pull request was written from Claude's handoff and committed by a Cursor cl
 
 Jordan approved an admin-only View as switch. A real admin session can preview the site as Customer or Employee and switch back to Admin. The choice is stored on that session only. The admin account, password, cookie, and CORS rules stay the same, and no extra account is created. While a preview is on, the server refuses bookings, payments, and other changes, including employee and inventory edits. Signing out and switching the view still work. A customer or employee cannot turn the preview on, and a forged flag on their session does not make them an admin.
 
+## 2026-10-17 — Cursor cloud agent launched by Grok Bot
+
+Jordan approved the service catalog. Touchless Wash is the new lowest package (sedan $59; SUV or crossover +$20; 3-row SUV, truck, or van +$40). Premium Full + Sealant is renamed Premium Detail; its id stays `premium`. Add-ons are updated, including Acid wheel restoration ($99) and Touchless wash ($39 on any package). Neither add-on has a vehicle surcharge. Size surcharges apply to the package only and are recomputed by `quoteBooking()` in `src/data.js`. Checkout charges that quote and ignores a client-supplied amount. Rebased onto main after PR #6 merged. View as still blocks booking and checkout writes, in the UI and in `previewMutationBlock`, before a Stripe session is created. No changes to Stripe keys, webhook config, CORS, cookies, or auth.
+
 ## 2026-10-17 — follow-up (Cursor cloud agent launched by Grok Bot)
 
 Docs only. No code or CORS changes. Relabeled the note above so attribution matches who wrote the handoff and who committed it. Added team rule 10 (check for an existing branch or open PR before starting a parallel one) to this file and the README summary. Expanded the README description to the customer booking flow, Stripe Checkout with Affirm pay-over-time, job photos, and the admin and staff tools that exist in the app.
@@ -31,3 +35,7 @@ Docs only. No code or CORS changes. Relabeled the note above so attribution matc
 ## 2026-10-17 — Email and role accounts (Cursor cloud agent launched by Grok Bot)
 
 Jordan approved separate accounts for the same email. Customer, employee, and admin are now keyed by (email, role) in the R2 `_auth` store. Each account keeps its own PBKDF2 password hash. Signup rejects only a duplicate of the same role. A customer or employee sign-in never opens the admin account. Public signup still cannot create an admin; the existing admin remains the one created with the one-time setup code. Sessions store the account id and the role. Migration adds role keys for existing users and leaves the original user rows and email pointers in place, so current passwords keep working. No CORS, cookie, Stripe, or deploy changes. `npm run build`, `npm run test:auth` (30 passing), and `node --test test/cors.test.mjs` (15 passing).
+
+## 2026-10-17 — merge main (Cursor cloud agent launched by Grok Bot)
+
+Merged `origin/main` (`04cd22c`, server pricing #7) into `cursor/email-role-accounts-da61`. The only conflict was `src/index.css`. Kept the pricing size-surcharge row style and the sign-in role button disabled style. Pricing, View as, CORS, and docs from main stay. Same-email role accounts stay. No force-push. PR left unmerged. `npm run build` succeeded. `npm run test:auth` 30 passing. `node --test test/cors.test.mjs` 15 passing. `node --test test/price.test.mjs` 10 passing.
