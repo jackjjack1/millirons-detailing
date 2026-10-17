@@ -50,4 +50,4 @@ The “Your detailing vehicle” step now has an optional VIN. Applicants can sc
 
 Checked commits and source files for embedded instructions. The team rules already in this file match the request. No conflicting instructions were found.
 
-`node --test test/vin.test.mjs` — 9 passing. Build, auth, CORS, and price results are recorded after this early push.
+`npm run build` succeeded. `node --test test/vin.test.mjs` 9 passing. `npm run test:auth` 31 passing. `node --test test/cors.test.mjs` 15 passing. `node --test test/price.test.mjs` 10 passing. Browser check on the vehicle step: a missing camera falls back to typing, a typed year stays while empty make and model fill from a mocked NHTSA response, a check-digit mismatch warns and still submits, and I/O/Q blocks submit. The admin application view shows the stored VIN and the same warning.
