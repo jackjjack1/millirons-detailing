@@ -24,6 +24,10 @@ This pull request was written from Claude's handoff and committed by a Cursor cl
 
 Jordan approved an admin-only View as switch. A real admin session can preview the site as Customer or Employee and switch back to Admin. The choice is stored on that session only. The admin account, password, cookie, and CORS rules stay the same, and no extra account is created. While a preview is on, the server refuses bookings, payments, and other changes, including employee and inventory edits. Signing out and switching the view still work. A customer or employee cannot turn the preview on, and a forged flag on their session does not make them an admin.
 
+## 2026-10-17 — Cursor cloud agent launched by Grok Bot
+
+Jordan approved the service catalog. Touchless Wash is the new lowest package (sedan $59; SUV or crossover +$20; 3-row SUV, truck, or van +$40). Premium Full + Sealant is renamed Premium Detail; its id stays `premium`. Add-ons are updated, including Acid wheel restoration ($99) and Touchless wash ($39 on any package). Neither add-on has a vehicle surcharge. Size surcharges apply to the package only and are recomputed by `quoteBooking()` in `src/data.js`. Checkout charges that quote and ignores a client-supplied amount. Rebased onto main after PR #6 merged. View as still blocks booking and checkout writes, in the UI and in `previewMutationBlock`, before a Stripe session is created. No changes to Stripe keys, webhook config, CORS, cookies, or auth.
+
 ## 2026-10-17 — follow-up (Cursor cloud agent launched by Grok Bot)
 
 Docs only. No code or CORS changes. Relabeled the note above so attribution matches who wrote the handoff and who committed it. Added team rule 10 (check for an existing branch or open PR before starting a parallel one) to this file and the README summary. Expanded the README description to the customer booking flow, Stripe Checkout with Affirm pay-over-time, job photos, and the admin and staff tools that exist in the app.
