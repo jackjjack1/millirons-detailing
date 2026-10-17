@@ -49,7 +49,10 @@ export async function authMe() {
   return data.user || null
 }
 export const authRegister = body => api('/api/auth/register', {method: 'POST', body})
-export const authEmail = (email, role) => api('/api/auth/email', {method: 'POST', body: role ? {email, role} : {email}})
+export function authEmail(email, role) {
+  if (role !== 'customer' && role !== 'employee') throw new Error('Could not check that email.')
+  return api('/api/auth/email', {method: 'POST', body: {email, role}})
+}
 export const authApply = body => api('/api/auth/apply', {method: 'POST', body})
 export const authPatchMe = body => api('/api/auth/me', {method: 'PATCH', body})
 export const authAccounts = () => api('/api/auth/accounts')

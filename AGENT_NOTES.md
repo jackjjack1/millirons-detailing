@@ -39,3 +39,7 @@ Jordan approved separate accounts for the same email. Customer, employee, and ad
 ## 2026-10-17 — merge main (Cursor cloud agent launched by Grok Bot)
 
 Merged `origin/main` (`04cd22c`, server pricing #7) into `cursor/email-role-accounts-da61`. The only conflict was `src/index.css`. Kept the pricing size-surcharge row style and the sign-in role button disabled style. Pricing, View as, CORS, and docs from main stay. Same-email role accounts stay. No force-push. PR left unmerged. `npm run build` succeeded. `npm run test:auth` 30 passing. `node --test test/cors.test.mjs` 15 passing. `node --test test/price.test.mjs` 10 passing.
+
+## 2026-10-17 — Detailer application email check (Cursor cloud agent launched by Grok Bot)
+
+The detailer application was still treating a customer or admin on the same email as a duplicate. `POST /api/auth/email` with no role (the application’s older request, `{email}` only) now checks only the employee account. A role of customer or employee checks that role alone. Applying still creates an employee account and still rejects a second employee account for that email. An employee invite for an email that already has a customer or admin is allowed; a second employee invite for an email that already has an employee is rejected. No CORS, cookie, Stripe, or deploy changes. `npm run build` succeeded. `npm run test:auth` 31 passing. `node --test test/cors.test.mjs` 15 passing. `node --test test/price.test.mjs` 10 passing.
