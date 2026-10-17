@@ -1,7 +1,10 @@
 // GET /api/checkout → feature probe {ok, live}. POST /api/checkout {booking} → Stripe Checkout Session (FULL payment only).
 import {json,priceFor,stripe,AFFIRM_MIN_USD} from './_stripe.js'
+import {previewMutationBlock} from '../_lib/auth.js'
 export const onRequestGet=({env})=>json({ok:true,live:!!env.STRIPE_SECRET_KEY,affirmMinUsd:AFFIRM_MIN_USD})
-export async function onRequestPost({request,env}){if(!env.STRIPE_SECRET_KEY)return json({error:'STRIPE_SECRET_KEY not configured'},503)
+export async function onRequestPost({request,env}){
+  const blocked=await previewMutationBlock(request,env);if(blocked)return blocked
+  if(!env.STRIPE_SECRET_KEY)return json({error:'STRIPE_SECRET_KEY not configured'},503)
   let b;try{({booking:b}=await request.json())}catch{return json({error:'bad json'},400)}
   if(!b||!/^MD-[A-Z0-9]{4,20}$/.test(b.id||''))return json({error:'bad booking id'},400)
   const p=priceFor(b);if(!p)return json({error:'unknown service'},400)

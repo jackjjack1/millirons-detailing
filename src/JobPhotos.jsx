@@ -29,9 +29,10 @@ const Dot=({s})=><i className={'pdot '+(s||'')} title={s}/>
 
 // ── Employee job workflow ──
 export function JobPanel({b,user}){const[job,setJobS]=useState(()=>jobState(b.id));const[ph,load]=useJobPhotos(b.id);const[cap,setCap]=useState(null);const[err,setErr]=useState('')
- const upd=v=>{setJob(b.id,v);setJobS(jobState(b.id))}
+ const preview=!!user?.preview
+ const upd=v=>{if(preview)return;setJob(b.id,v);setJobS(jobState(b.id))}
  const before=ph.filter(p=>p.group==='before'),after=ph.filter(p=>p.group==='after')
- const shot=group=>async f=>{try{await photoStore.put(b.id,group,f,{by:user.name});await load()}catch(e){setErr(e.message)}}
+ const shot=group=>async f=>{if(preview)return setErr('Preview only. Photos are not saved in this view.');try{await photoStore.put(b.id,group,f,{by:user.name});await load()}catch(e){setErr(e.message)}}
  const del=async p=>{await photoStore.remove(p.id);await load()}
  const step=job.status==='Completed'?4:job.status!=='In progress'?0:!before.length?1:!after.length?(job.working?3:2):3
  const start=()=>{upd({status:'In progress',started:Date.now(),by:user.name});audit(user,'Job started',`${b.id}`)}
@@ -39,10 +40,11 @@ export function JobPanel({b,user}){const[job,setJobS]=useState(()=>jobState(b.id
  const S=['Start job','Before photos','Do the work','After photos','Complete']
  return <div className="card flat jobpanel"><div className="jp-h"><h3>Job</h3><span className={'spill s-'+job.status.toLowerCase().replace(/\s+/g,'-')}>{job.status}</span></div>
   <ol className="jp-steps">{S.map((s,i)=><li key={s} className={i<step||job.status==='Completed'?'done':i===step?'cur':''}><span>{i<step||job.status==='Completed'?'✓':i+1}</span>{s}</li>)}</ol>
-  {job.status==='Not started'&&<button className="ck-btn" onClick={start}>Start job</button>}
-  {job.status==='In progress'&&<><div className="jp-groups">{[['before','Before',before],['after','After',after]].map(([g,l,list])=><div key={g} className="jp-g"><div className="jp-gh"><b>{l}</b><small>{list.length} photo{list.length===1?'':'s'}</small></div><div className="jp-th">{list.slice(-4).map(p=><span className="jp-ti" key={p.id}><img src={p.url} alt=""/><Dot s={p.state}/></span>)}{!list.length&&<span className="muted">None yet</span>}</div><button className="pill sm" onClick={()=>setCap(g)}>📷 {list.length?'Add more':`Take ${l.toLowerCase()} photos`}</button></div>)}</div>
+  {preview&&<p className="muted">Preview only. Job updates and photos are not saved in this view.</p>}
+  {job.status==='Not started'&&<button className="ck-btn" onClick={start} disabled={preview}>Start job</button>}
+  {job.status==='In progress'&&<><div className="jp-groups">{[['before','Before',before],['after','After',after]].map(([g,l,list])=><div key={g} className="jp-g"><div className="jp-gh"><b>{l}</b><small>{list.length} photo{list.length===1?'':'s'}</small></div><div className="jp-th">{list.slice(-4).map(p=><span className="jp-ti" key={p.id}><img src={p.url} alt=""/><Dot s={p.state}/></span>)}{!list.length&&<span className="muted">None yet</span>}</div><button className="pill sm" onClick={()=>setCap(g)} disabled={preview}>📷 {list.length?'Add more':`Take ${l.toLowerCase()} photos`}</button></div>)}</div>
    {before.length>0&&!after.length&&<p className="muted">Before photos saved. Do the work, then take After photos.</p>}
-   {err&&<p className="err">{err}</p>}<button className="ck-btn out" disabled={!before.length||!after.length} onClick={complete}>Complete job</button></>}
+   {err&&<p className="err">{err}</p>}<button className="ck-btn out" disabled={preview||!before.length||!after.length} onClick={complete}>Complete job</button></>}
   {job.status==='Completed'&&<p className="muted">Completed {tm(job.completed)} · {before.length} before / {after.length} after photos.</p>}
   <SyncStatus ph={ph}/>
   {cap&&<CaptureSheet label={cap==='before'?'Before':'After'} shots={cap==='before'?before:after} onShot={shot(cap)} onDelete={del} onClose={()=>setCap(null)}/>}</div>}

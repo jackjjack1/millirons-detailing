@@ -4,7 +4,7 @@
 // Same R2 bucket binding PHOTOS.
 // List is admin-only. Upload is allowed for an admin, or for the employee whose appId matches.
 // __probe stays public and returns no documents.
-import {requireAdmin, requireUser} from '../_lib/auth.js'
+import {previewMutationBlock, requireAdmin, requireUser} from '../_lib/auth.js'
 const json=(d,s=200)=>new Response(JSON.stringify(d),{status:s,headers:{'content-type':'application/json','cache-control':'no-store'}})
 const safe=s=>/^[A-Za-z0-9_-]{1,64}$/.test(s), TYPES=['vehicle','registration','insurance','other']
 const clean=n=>String(n||'file').toLowerCase().replace(/[^a-z0-9.]+/g,'-').replace(/^-+|-+$/g,'').slice(-60)||'file'
@@ -15,6 +15,7 @@ export async function onRequestGet({request,env}){if(!env.PHOTOS)return json({er
   const documents=[];let cursor;do{const l=await env.PHOTOS.list({prefix:`applications/${id}/`,cursor,include:['customMetadata','httpMetadata']});for(const o of l.objects){const [,,type,file]=o.key.split('/');documents.push({key:o.key,type,name:o.customMetadata?.name||file,contentType:o.httpMetadata?.contentType,size:o.size,ts:Number(o.customMetadata?.ts)||0,url:'/api/documents/'+o.key})}cursor=l.truncated?l.cursor:null}while(cursor)
   return json({documents})}
 export async function onRequestPost({request,env}){if(!env.PHOTOS)return json({error:'PHOTOS binding missing'},503)
+  const blocked=await previewMutationBlock(request,env);if(blocked)return blocked
   const gate=await requireUser(request,env);if(gate.error)return gate.error
   let fd;try{fd=await request.formData()}catch{return json({error:'multipart form required'},400)}
   const id=String(fd.get('applicationId')||''),type=String(fd.get('type')||''),file=fd.get('file')

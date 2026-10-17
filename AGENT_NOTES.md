@@ -20,6 +20,10 @@ Added the current Freebuff preview hostname to the exact-origin credentialed COR
 
 This pull request was written from Claude's handoff and committed by a Cursor cloud agent launched by Grok Bot. Docs only. No code or CORS changes. README replaced. DEPLOY.md now lists the exact preview origins allowed by `functions/_lib/cors.js`. New preview hosts need Jordan's approval. Added Jordan's team rules at the top of this file, and the README rules summary matches them.
 
+## 2026-10-17 — View as (Cursor cloud agent launched by Grok Bot)
+
+Jordan approved an admin-only View as switch. A real admin session can preview the site as Customer or Employee and switch back to Admin. The choice is stored on that session only. The admin account, password, cookie, and CORS rules stay the same, and no extra account is created. While a preview is on, the server refuses bookings, payments, and other changes, including employee and inventory edits. Signing out and switching the view still work. A customer or employee cannot turn the preview on, and a forged flag on their session does not make them an admin.
+
 ## 2026-10-17 — follow-up (Cursor cloud agent launched by Grok Bot)
 
 Docs only. No code or CORS changes. Relabeled the note above so attribution matches who wrote the handoff and who committed it. Added team rule 10 (check for an existing branch or open PR before starting a parallel one) to this file and the README summary. Expanded the README description to the customer booking flow, Stripe Checkout with Affirm pay-over-time, job photos, and the admin and staff tools that exist in the app.

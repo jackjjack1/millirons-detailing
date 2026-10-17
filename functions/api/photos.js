@@ -5,7 +5,7 @@
 // List, upload, and delete require a signed-in customer, employee, or admin. Booking
 // records are still on the device, so the server checks the account and the booking id
 // shape; it cannot yet prove that this booking belongs to that account.
-import {requireUser} from '../_lib/auth.js'
+import {previewMutationBlock, requireUser} from '../_lib/auth.js'
 const json=(d,s=200)=>new Response(JSON.stringify(d),{status:s,headers:{'content-type':'application/json','cache-control':'no-store'}})
 const safe=s=>/^[A-Za-z0-9_-]{1,64}$/.test(s)
 export async function onRequestGet({request,env}){if(!env.PHOTOS)return json({error:'PHOTOS binding missing'},503)
@@ -17,6 +17,7 @@ export async function onRequestGet({request,env}){if(!env.PHOTOS)return json({er
     cursor=l.truncated?l.cursor:null}while(cursor)
   return json({photos:photos.sort((a,b)=>a.ts-b.ts)})}
 export async function onRequestPost({request,env}){if(!env.PHOTOS)return json({error:'PHOTOS binding missing'},503)
+  const blocked=await previewMutationBlock(request,env);if(blocked)return blocked
   const gate=await requireUser(request,env);if(gate.error)return gate.error
   let fd;try{fd=await request.formData()}catch{return json({error:'multipart form required'},400)}
   const bookingId=String(fd.get('bookingId')||''),group=String(fd.get('group')||''),file=fd.get('file')
