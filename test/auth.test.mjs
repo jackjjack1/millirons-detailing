@@ -519,6 +519,67 @@ test('the same email can have a customer and an employee, and customer login can
   assert.deepEqual(passwordById(env), hashes)
 })
 
+test('the detailer application checks and creates only an employee account', async () => {
+  const env = envOf()
+  const email = 'pat.detailer@millirons.test'
+  const admin = await data(await setupPost({request: req('/api/auth/setup', {method: 'POST', body: {name: 'Jordan Millirons', email: 'owner@millirons.test', password: 'admin-pass-1', code: CODE}}), env}))
+  assert.equal(admin.status, 201)
+  const customer = await data(await register({request: req('/api/auth/register', {method: 'POST', body: {name: 'Pat Customer', email, password: 'customer-pass-1'}}), env}))
+  assert.equal(customer.status, 201)
+  assert.equal(customer.json.user.role, 'customer')
+
+  const probe = async body => data(await emailCheck({request: req('/api/auth/email', {method: 'POST', body}), env}))
+  const asEmployee = await probe({email, role: 'employee'})
+  const omitted = await probe({email})
+  const asCustomer = await probe({email, role: 'customer'})
+  const asAdmin = await probe({email, role: 'admin'})
+  assert.equal(asEmployee.status, 200)
+  assert.equal(asEmployee.json.exists, false)
+  assert.equal(omitted.status, 200)
+  assert.equal(omitted.json.exists, false)
+  assert.equal(asCustomer.json.exists, true)
+  assert.equal(asAdmin.status, 400)
+  assert.equal(rolePointers(env).employee, undefined)
+
+  const ownerProbe = await probe({email: 'owner@millirons.test'})
+  const ownerEmployee = await probe({email: 'owner@millirons.test', role: 'employee'})
+  assert.equal(ownerProbe.json.exists, false)
+  assert.equal(ownerEmployee.json.exists, false)
+
+  const invited = await data(await invitesPost({request: req('/api/auth/invites', {method: 'POST', cookie: jar(admin.cookie), body: {name: 'Pat Detailer', email, role: 'employee'}}), env}))
+  assert.equal(invited.status, 201)
+  assert.equal(invited.json.invite.role, 'employee')
+  assert.equal(invited.json.invite.email, email)
+
+  const employee = await data(await apply({request: req('/api/auth/apply', {method: 'POST', body: {name: 'Pat Detailer', email, password: 'employee-pass-1', phone: '4045550199', city: 'Decatur', years: '4'}}), env}))
+  assert.equal(employee.status, 201)
+  assert.equal(employee.json.user.role, 'employee')
+  assert.notEqual(employee.json.user.id, customer.json.user.id)
+  assert.equal(rolePointers(env).customer, customer.json.user.id)
+  assert.equal(rolePointers(env).employee, employee.json.user.id)
+  assert.equal(legacyEmailRows(env).find(row => row.value.id === customer.json.user.id).value.id, customer.json.user.id)
+
+  const taken = await probe({email})
+  const takenRole = await probe({email, role: 'employee'})
+  assert.equal(taken.json.exists, true)
+  assert.equal(takenRole.json.exists, true)
+  const dup = await data(await apply({request: req('/api/auth/apply', {method: 'POST', body: {name: 'Other Detailer', email, password: 'employee-pass-9', phone: '4045550100', city: 'Decatur'}}), env}))
+  assert.equal(dup.status, 409)
+  assert.match(dup.json.error, /employee account/i)
+  assert.equal(storedRows(env, '_auth/users/').filter(row => row.value.email === email && row.value.role === 'employee').length, 1)
+  const dupInvite = await data(await invitesPost({request: req('/api/auth/invites', {method: 'POST', cookie: jar(admin.cookie), body: {name: 'Other Detailer', email, role: 'employee'}}), env}))
+  assert.equal(dupInvite.status, 409)
+
+  const stillCustomer = await data(await login({request: req('/api/auth/login', {method: 'POST', body: {email, password: 'customer-pass-1', role: 'customer'}}), env}))
+  assert.equal(stillCustomer.status, 200)
+  assert.equal(stillCustomer.json.user.role, 'customer')
+  assert.equal(stillCustomer.json.user.id, customer.json.user.id)
+  const staff = await data(await login({request: req('/api/auth/login', {method: 'POST', body: {email, password: 'employee-pass-1', role: 'employee'}}), env}))
+  assert.equal(staff.status, 200)
+  assert.equal(staff.json.user.id, employee.json.user.id)
+  assert.equal(staff.json.user.role, 'employee')
+})
+
 test('a shared password asks which role to open and does not grant admin by default', async () => {
   const env = envOf()
   const email = 'both@millirons.test'

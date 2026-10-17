@@ -293,7 +293,7 @@ export async function createUser(env, fields, password) {
   if (!ROLES.includes(role)) throw fail('Unknown role.', 400)
   if (!validEmail(email)) throw fail('Enter a valid email.', 400)
   if (typeof password !== 'string' || password.length < 8 || password.length > 200) throw fail('Password must be at least 8 characters.', 400)
-  if (await getUserByEmailRole(env, email, role)) throw fail('An account with this email already exists. Please sign in.', 409)
+  if (await getUserByEmailRole(env, email, role)) throw fail(duplicateRoleMessage(role), 409)
   const id = `u${randomId(9)}`
   const user = {
     id,
@@ -327,7 +327,7 @@ export async function createUser(env, fields, password) {
   }
   if (!claimed) {
     await env.PHOTOS.delete(userKey(id))
-    throw fail('An account with this email already exists. Please sign in.', 409)
+    throw fail(duplicateRoleMessage(role), 409)
   }
   await keepLegacyPointer(env, hash, id)
   return user
@@ -664,19 +664,26 @@ export async function registerPost({request, env}) {
   return sessionResponse({user: publicUser(user)}, 201, setCookie)
 }
 
+function duplicateRoleMessage(role) {
+  const label = role === 'customer' ? 'customer' : role === 'employee' ? 'employee' : 'admin'
+  const article = label === 'customer' ? 'A' : 'An'
+  return `${article} ${label} account with this email already exists. Please sign in.`
+}
+
 export async function emailPost({request, env}) {
   assertConfigured(env)
   await migrateRoleIndex(env)
   const body = await readJson(request)
   const email = normEmail(body.email)
   if (!validEmail(email)) throw fail('Enter a valid email.', 400)
+  // Customer and employee checks stay on that role. An omitted role is the
+  // detailer application (older clients posted {email} only). A customer or
+  // admin on the same address is not an employee account. Admin existence
+  // stays off this public check.
   const role = body.role === 'customer' || body.role === 'employee' ? body.role : ''
-  // Admin existence is not part of this public check.
   if (body.role && !role) throw fail('Enter a valid email.', 400)
-  if (role) return json({exists: !!(await getUserByEmailRole(env, email, role))})
-  const customer = await getUserByEmailRole(env, email, 'customer')
-  const employee = await getUserByEmailRole(env, email, 'employee')
-  return json({exists: !!(customer || employee)})
+  const check = role || 'employee'
+  return json({exists: !!(await getUserByEmailRole(env, email, check))})
 }
 
 export async function applyPost({request, env}) {
@@ -807,7 +814,7 @@ export async function invitesPost({request, env}) {
   const role = body.role === 'admin' ? 'admin' : 'employee'
   if (!name) throw fail('Enter a name.', 400)
   if (!validEmail(email)) throw fail('Enter a valid email.', 400)
-  if (await getUserByEmailRole(env, email, role)) throw fail('An account with this email already exists.', 409)
+  if (await getUserByEmailRole(env, email, role)) throw fail(duplicateRoleMessage(role), 409)
   const pending = await listInvites(env)
   if (pending.some(i => i.email === email && i.role === role && i.status === 'Pending' && Date.now() <= i.exp)) throw fail('There is already a pending invite for that email.', 409)
   const inv = {
