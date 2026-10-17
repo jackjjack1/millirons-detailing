@@ -174,20 +174,90 @@ export function publicUser(user) {
   return rest
 }
 
+const ROLES = ['customer', 'employee', 'admin']
+const ROLE_INDEX_MARKER = '_auth/meta/role-index-v1'
+
 function userKey(id) { return `_auth/users/${id}` }
+// Original index: one pointer per email. Left in place so existing accounts keep resolving.
 function emailKey(hash) { return `_auth/email/${hash}` }
+// Authoritative index: one account per (email, role), each with its own password hash.
+function roleKey(hash, role) { return `_auth/email/${hash}/${role}` }
 
 export async function getUserById(env, id) {
   if (!id || !/^[A-Za-z0-9_-]{8,80}$/.test(id)) return null
   return r2get(env, userKey(id))
 }
+
+async function userFromPointer(env, pointer, email, role) {
+  if (!pointer?.id) return null
+  const user = await getUserById(env, pointer.id)
+  if (!user || user.role !== role || normEmail(user.email) !== email) return null
+  return user
+}
+
+// Claim `_auth/email/<hash>/<role>` only when it is empty or already names this account.
+// A different account's pointer is left untouched.
+async function ensureRolePointer(env, hash, role, id) {
+  const key = roleKey(hash, role)
+  const existing = await r2get(env, key)
+  if (existing?.id) return existing.id === id
+  let pointer
+  try {
+    pointer = await env.PHOTOS.put(key, JSON.stringify({id, role}), {
+      httpMetadata: {contentType: 'application/json'},
+      onlyIf: {etagDoesNotMatch: '*'},
+    })
+  } catch (e) {
+    if (!(await env.PHOTOS.head(key))) throw e
+    pointer = null
+  }
+  if (pointer) return true
+  const won = await r2get(env, key)
+  return won?.id === id
+}
+
+// Write the original email pointer only when this email has never had one.
+// Never overwrite or delete it: it still names the account that was created first.
+async function keepLegacyPointer(env, hash, id) {
+  const key = emailKey(hash)
+  if (await env.PHOTOS.head(key)) return
+  try {
+    await env.PHOTOS.put(key, JSON.stringify({id}), {
+      httpMetadata: {contentType: 'application/json'},
+      onlyIf: {etagDoesNotMatch: '*'},
+    })
+  } catch (e) {
+    if (await env.PHOTOS.head(key)) return
+    throw e
+  }
+}
+
+export async function getUserByEmailRole(env, email, role) {
+  const normal = normEmail(email)
+  if (!normal || !ROLES.includes(role)) return null
+  const hash = await sha256hex(normal)
+  const direct = await userFromPointer(env, await r2get(env, roleKey(hash, role)), normal, role)
+  if (direct) return direct
+  const legacy = await userFromPointer(env, await r2get(env, emailKey(hash)), normal, role)
+  if (!legacy) return null
+  await ensureRolePointer(env, hash, role, legacy.id)
+  return legacy
+}
+
+// Original email pointer, for callers that still want the first account on this address.
+// Role checks must use getUserByEmailRole so a customer cannot resolve to the admin.
 export async function getUserByEmail(env, email) {
   const normal = normEmail(email)
   if (!normal) return null
-  const pointer = await r2get(env, emailKey(await sha256hex(normal)))
-  if (!pointer?.id) return null
-  return getUserById(env, pointer.id)
+  const hash = await sha256hex(normal)
+  const legacy = await r2get(env, emailKey(hash))
+  if (!legacy?.id) return null
+  const user = await getUserById(env, legacy.id)
+  if (!user || normEmail(user.email) !== normal) return null
+  if (ROLES.includes(user.role)) await ensureRolePointer(env, hash, user.role, user.id)
+  return user
 }
+
 export async function listUsers(env) {
   return listPrefix(env, '_auth/users/')
 }
@@ -195,16 +265,41 @@ export async function putUser(env, user) {
   await r2put(env, userKey(user.id), user)
 }
 
+// Copy existing accounts onto (email, role) keys. Adds pointers only.
+// Existing user rows and the original email pointers stay where they are.
+export async function migrateRoleIndex(env) {
+  if (!env?.PHOTOS) return
+  if (await env.PHOTOS.head(ROLE_INDEX_MARKER)) return
+  const users = await listUsers(env)
+  for (const user of users) {
+    const email = normEmail(user?.email)
+    if (!user?.id || !ROLES.includes(user?.role) || !validEmail(email)) continue
+    await ensureRolePointer(env, await sha256hex(email), user.role, user.id)
+  }
+  try {
+    await env.PHOTOS.put(ROLE_INDEX_MARKER, JSON.stringify({at: Date.now(), version: 1}), {
+      httpMetadata: {contentType: 'application/json'},
+      onlyIf: {etagDoesNotMatch: '*'},
+    })
+  } catch (e) {
+    if (!(await env.PHOTOS.head(ROLE_INDEX_MARKER))) throw e
+  }
+}
+
 export async function createUser(env, fields, password) {
+  await migrateRoleIndex(env)
   const email = normEmail(fields.email)
+  const role = fields.role
+  if (!ROLES.includes(role)) throw fail('Unknown role.', 400)
   if (!validEmail(email)) throw fail('Enter a valid email.', 400)
   if (typeof password !== 'string' || password.length < 8 || password.length > 200) throw fail('Password must be at least 8 characters.', 400)
+  if (await getUserByEmailRole(env, email, role)) throw fail('An account with this email already exists. Please sign in.', 409)
   const id = `u${randomId(9)}`
   const user = {
     id,
     name: clip(fields.name, 80),
     email,
-    role: fields.role,
+    role,
     status: fields.status || 'Approved',
     created: Date.now(),
     password: await hashPassword(password),
@@ -220,21 +315,21 @@ export async function createUser(env, fields, password) {
     applicantNote: fields.applicantNote || undefined,
   }
   if (!user.name) throw fail('Enter your name.', 400)
+  const hash = await sha256hex(email)
   await r2put(env, userKey(id), user)
-  let pointer
+  let claimed = false
   try {
-    pointer = await env.PHOTOS.put(emailKey(await sha256hex(email)), JSON.stringify({id}), {
-      httpMetadata: {contentType: 'application/json'},
-      onlyIf: {etagDoesNotMatch: '*'},
-    })
+    claimed = await ensureRolePointer(env, hash, role, id)
   } catch (e) {
-    if (await env.PHOTOS.head(emailKey(await sha256hex(email)))) pointer = null
-    else { await env.PHOTOS.delete(userKey(id)); throw e }
+    // Roll back only the row this attempt just inserted. Existing accounts stay.
+    await env.PHOTOS.delete(userKey(id))
+    throw e
   }
-  if (!pointer) {
+  if (!claimed) {
     await env.PHOTOS.delete(userKey(id))
     throw fail('An account with this email already exists. Please sign in.', 409)
   }
+  await keepLegacyPointer(env, hash, id)
   return user
 }
 
@@ -339,6 +434,14 @@ export async function readSession(request, env) {
   }
   const user = await getUserById(env, session.userId)
   if (!user) return null
+  // A session is bound to one account. A mismatched role cannot be used to reach a different one.
+  if (session.role && session.role !== user.role) return null
+  if (!session.role && ROLES.includes(user.role)) {
+    const next = {...session, role: user.role}
+    delete next.password
+    await r2put(env, `_auth/sessions/${sid}`, next)
+    session.role = user.role
+  }
   return {sid, session, user}
 }
 
@@ -392,7 +495,8 @@ export async function previewMutationBlock(request, env) {
 export async function startSession(env, request, user) {
   const secret = assertConfigured(env)
   const sid = randomId(32)
-  await r2put(env, `_auth/sessions/${sid}`, {userId: user.id, created: Date.now(), exp: Date.now() + SESSION_MS})
+  // The session names this account and its role. View-as, when set later, does not replace either.
+  await r2put(env, `_auth/sessions/${sid}`, {userId: user.id, role: user.role, created: Date.now(), exp: Date.now() + SESSION_MS})
   const sig = bytesToB64u(await hmacSign(secret, sid))
   return sessionCookie(`${sid}.${sig}`, {secure: requestIsSecure(request), maxAge: SESSION_SEC})
 }
@@ -467,17 +571,41 @@ export async function setupPost({request, env}) {
 
 export async function loginPost({request, env}) {
   assertConfigured(env)
+  await migrateRoleIndex(env)
   const body = await readJson(request)
   const email = normEmail(body.email)
-  const role = body.role
+  const requested = typeof body.role === 'string' ? body.role : ''
   const password = typeof body.password === 'string' ? body.password : ''
-  if (!['customer', 'employee', 'admin'].includes(role)) throw fail('Incorrect email or password for this role.', 401)
   if (!password || password.length > 200) throw fail('Incorrect email or password for this role.', 401)
-  const user = validEmail(email) ? await getUserByEmail(env, email) : null
-  const match = await checkPassword(password, user && user.role === role ? user : null)
-  if (!match) throw fail('Incorrect email or password for this role.', 401)
-  const setCookie = await startSession(env, request, user)
-  return sessionResponse({user: publicUser(user)}, 200, setCookie)
+  if (requested && !ROLES.includes(requested)) throw fail('Incorrect email or password for this role.', 401)
+  const emailOk = validEmail(email)
+  // A chosen role is checked against that account only. Customer or employee
+  // never falls through to the admin who happens to use the same email.
+  if (requested) {
+    const user = emailOk ? await getUserByEmailRole(env, email, requested) : null
+    const match = await checkPassword(password, user && user.role === requested ? user : null)
+    if (!match || !user || user.role !== requested) throw fail('Incorrect email or password for this role.', 401)
+    const setCookie = await startSession(env, request, user)
+    return sessionResponse({user: publicUser(user)}, 200, setCookie)
+  }
+  const matches = []
+  for (const role of ROLES) {
+    const user = emailOk ? await getUserByEmailRole(env, email, role) : null
+    const match = await checkPassword(password, user && user.role === role ? user : null)
+    if (match && user && user.role === role) matches.push(user)
+  }
+  if (matches.length === 1) {
+    const setCookie = await startSession(env, request, matches[0])
+    return sessionResponse({user: publicUser(matches[0])}, 200, setCookie)
+  }
+  if (matches.length > 1) {
+    return json({
+      chooseRole: true,
+      roles: matches.map(user => user.role),
+      error: 'That password matches more than one account. Choose which one to use.',
+    }, 409)
+  }
+  throw fail('Incorrect email or password for this role.', 401)
 }
 
 export async function logoutPost({request, env}) {
@@ -538,11 +666,17 @@ export async function registerPost({request, env}) {
 
 export async function emailPost({request, env}) {
   assertConfigured(env)
+  await migrateRoleIndex(env)
   const body = await readJson(request)
   const email = normEmail(body.email)
   if (!validEmail(email)) throw fail('Enter a valid email.', 400)
-  const user = await getUserByEmail(env, email)
-  return json({exists: !!user})
+  const role = body.role === 'customer' || body.role === 'employee' ? body.role : ''
+  // Admin existence is not part of this public check.
+  if (body.role && !role) throw fail('Enter a valid email.', 400)
+  if (role) return json({exists: !!(await getUserByEmailRole(env, email, role))})
+  const customer = await getUserByEmailRole(env, email, 'customer')
+  const employee = await getUserByEmailRole(env, email, 'employee')
+  return json({exists: !!(customer || employee)})
 }
 
 export async function applyPost({request, env}) {
@@ -594,7 +728,7 @@ export async function accountsPatch({request, env}) {
   const reason = clip(body.reason, 500)
   if (!['Approved', 'Rejected', 'More info needed', 'Pending review'].includes(status)) throw fail('Unknown status.', 400)
   if (status !== 'Approved' && !reason) throw fail('Add a reason first.', 400)
-  const target = await getUserByEmail(env, body.email)
+  const target = await getUserByEmailRole(env, body.email, 'employee')
   if (!target || target.role !== 'employee') throw fail('Applicant not found.', 404)
   target.status = status
   target.history = [...(target.history || []), {status, by: admin.name, ts: Date.now(), reason: reason || undefined}]
@@ -629,7 +763,7 @@ export async function describeInvite(env, inv) {
   if (inv.status === 'Revoked') return 'revoked'
   if (inv.status === 'Accepted') return 'used'
   if (Date.now() > inv.exp) return 'expired'
-  if (await getUserByEmail(env, inv.email)) return 'used'
+  if (await getUserByEmailRole(env, inv.email, inv.role)) return 'used'
   return 'ok'
 }
 function publicInvite(inv) {
@@ -673,9 +807,9 @@ export async function invitesPost({request, env}) {
   const role = body.role === 'admin' ? 'admin' : 'employee'
   if (!name) throw fail('Enter a name.', 400)
   if (!validEmail(email)) throw fail('Enter a valid email.', 400)
-  if (await getUserByEmail(env, email)) throw fail('An account with this email already exists.', 409)
+  if (await getUserByEmailRole(env, email, role)) throw fail('An account with this email already exists.', 409)
   const pending = await listInvites(env)
-  if (pending.some(i => i.email === email && i.status === 'Pending' && Date.now() <= i.exp)) throw fail('There is already a pending invite for that email.', 409)
+  if (pending.some(i => i.email === email && i.role === role && i.status === 'Pending' && Date.now() <= i.exp)) throw fail('There is already a pending invite for that email.', 409)
   const inv = {
     id: `INV-${randomHex(4).toUpperCase()}`,
     name,

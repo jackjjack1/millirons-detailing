@@ -31,3 +31,11 @@ Jordan approved the service catalog. Touchless Wash is the new lowest package (s
 ## 2026-10-17 — follow-up (Cursor cloud agent launched by Grok Bot)
 
 Docs only. No code or CORS changes. Relabeled the note above so attribution matches who wrote the handoff and who committed it. Added team rule 10 (check for an existing branch or open PR before starting a parallel one) to this file and the README summary. Expanded the README description to the customer booking flow, Stripe Checkout with Affirm pay-over-time, job photos, and the admin and staff tools that exist in the app.
+
+## 2026-10-17 — Email and role accounts (Cursor cloud agent launched by Grok Bot)
+
+Jordan approved separate accounts for the same email. Customer, employee, and admin are now keyed by (email, role) in the R2 `_auth` store. Each account keeps its own PBKDF2 password hash. Signup rejects only a duplicate of the same role. A customer or employee sign-in never opens the admin account. Public signup still cannot create an admin; the existing admin remains the one created with the one-time setup code. Sessions store the account id and the role. Migration adds role keys for existing users and leaves the original user rows and email pointers in place, so current passwords keep working. No CORS, cookie, Stripe, or deploy changes. `npm run build`, `npm run test:auth` (30 passing), and `node --test test/cors.test.mjs` (15 passing).
+
+## 2026-10-17 — merge main (Cursor cloud agent launched by Grok Bot)
+
+Merged `origin/main` (`04cd22c`, server pricing #7) into `cursor/email-role-accounts-da61`. The only conflict was `src/index.css`. Kept the pricing size-surcharge row style and the sign-in role button disabled style. Pricing, View as, CORS, and docs from main stay. Same-email role accounts stay. No force-push. PR left unmerged. `npm run build` succeeded. `npm run test:auth` 30 passing. `node --test test/cors.test.mjs` 15 passing. `node --test test/price.test.mjs` 10 passing.
