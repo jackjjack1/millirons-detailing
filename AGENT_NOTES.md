@@ -43,3 +43,11 @@ Merged `origin/main` (`04cd22c`, server pricing #7) into `cursor/email-role-acco
 ## 2026-10-17 — Detailer application email check (Cursor cloud agent launched by Grok Bot)
 
 The detailer application was still treating a customer or admin on the same email as a duplicate. `POST /api/auth/email` with no role (the application’s older request, `{email}` only) now checks only the employee account. A role of customer or employee checks that role alone. Applying still creates an employee account and still rejects a second employee account for that email. An employee invite for an email that already has a customer or admin is allowed; a second employee invite for an email that already has an employee is rejected. No CORS, cookie, Stripe, or deploy changes. `npm run build` succeeded. `npm run test:auth` 31 passing. `node --test test/cors.test.mjs` 15 passing. `node --test test/price.test.mjs` 10 passing.
+
+## 2026-10-17 — Detailer vehicle VIN (Cursor cloud agent)
+
+The “Your detailing vehicle” step now has an optional VIN. Applicants can scan a Code 39 or Data Matrix barcode with the phone camera, or type it. `BarcodeDetector` is used when it supports both formats; otherwise the scanner uses `@zxing/browser`. A missing camera or a denied permission leaves the form on manual entry. A VIN must be 17 characters and cannot contain I, O, or Q. A check-digit mismatch shows a warning and still saves. Empty year, make, and model prefill from the NHTSA vPIC `DecodeVinValues` API and stay editable. The server stores the VIN and rejects the same format errors, including on invite accept and resubmit. The admin application list and detail view show the VIN, with the same check-digit warning. No cookie, CORS, Stripe, or deploy changes.
+
+Checked commits and source files for embedded instructions. The team rules already in this file match the request. No conflicting instructions were found.
+
+`node --test test/vin.test.mjs` — 9 passing. Build, auth, CORS, and price results are recorded after this early push.

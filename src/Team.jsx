@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { audit, fmt } from './Ops'
-import { VanProof, blankVan, vanValid } from './Apply'
+import { VanProof, blankVan, vanValid, vanProblems } from './Apply'
 import { uploadDocs } from './photoStore'
 import { contactLine, methodLine, hireLink, inviteMessage, mailHref, smsHref, digits } from './hireInvites.js'
 import { authAccounts, authInvites, authCreateInvite, authInviteAction, authInvitePreview, authAcceptInvite, authPatchMe, authHires, authCreateHire, authPatchHire, authDeleteHire } from './authApi.js'
@@ -47,7 +47,7 @@ export function AcceptInvite({token,setUser}){const[state,setState]=useState('lo
  const MSG={invalid:'This invite link is invalid.',expired:'This invite has expired. Ask your admin to resend it.',revoked:'This invite was revoked.',used:'This invite has already been used. Sign in instead.'}
  if(state==='loading')return <section className="sec light top center"><p className="muted">Checking invite…</p></section>
  if(state!=='ok'||!p)return <section className="sec light top center"><h1 className="h1s">Invite unavailable.</h1><p className="sub center">{MSG[state]||MSG.invalid}</p><a className="pill" href={p?.role==='admin'||p?.role==='employee'?`#/login?role=${p.role}`:'#/login'}>Go to sign in</a></section>
- const submit=async e=>{e.preventDefault();if(f.confirm.trim().toLowerCase()!==p.email)return setErr('That email doesn’t match the invite.');if(!f.name.trim())return setErr('Enter your name.');if(f.pw.length<8)return setErr('Password must be at least 8 characters.');if(f.pw!==f.pw2)return setErr('Passwords don’t match.');if(p.role==='employee'&&!vanValid(van))return setErr('Add at least one vehicle photo and the year, make, model and plate.')
+ const submit=async e=>{e.preventDefault();if(f.confirm.trim().toLowerCase()!==p.email)return setErr('That email doesn’t match the invite.');if(!f.name.trim())return setErr('Enter your name.');if(f.pw.length<8)return setErr('Password must be at least 8 characters.');if(f.pw!==f.pw2)return setErr('Passwords don’t match.');if(p.role==='employee'&&!vanValid(van))return setErr(vanProblems(van))
   setBusy(true);setErr('')
   try{
    const data=await authAcceptInvite({token,name:f.name.trim(),confirm:f.confirm.trim(),password:f.pw,van})
