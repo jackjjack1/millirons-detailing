@@ -1,3 +1,5 @@
+import { assessVin } from '../../src/vin.js'
+
 // Server-side accounts for Pages Functions.
 // Records live in the existing PHOTOS R2 bucket under the private `_auth/` prefix
 // (no public route serves that prefix). Passwords are PBKDF2-SHA-256. Sessions are
@@ -345,6 +347,8 @@ export function cleanProfile(p = {}) {
 
 export function cleanVan(v) {
   if (!v || typeof v !== 'object') return undefined
+  const assessed = assessVin(v.vin)
+  if (!assessed.ok) throw fail(assessed.formatError, 400)
   let budget = 3_000_000
   const files = (arr, limit) => (Array.isArray(arr) ? arr : []).slice(0, limit).map(f => {
     if (!f || typeof f !== 'object') return null
@@ -370,6 +374,7 @@ export function cleanVan(v) {
     make: clip(v.make, 40),
     model: clip(v.model, 40),
     plate: clip(v.plate, 16),
+    vin: assessed.vin,
     checklist: (Array.isArray(v.checklist) ? v.checklist : []).slice(0, 30).map(x => clip(x, 80)).filter(Boolean),
     photos: files(v.photos, 8),
     docs: files(v.docs, 8),
