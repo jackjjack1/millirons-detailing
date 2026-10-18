@@ -504,6 +504,9 @@ export function presentedUser(user, session) {
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const PREVIEW_OPEN = new Set(['/api/auth/view-as', '/api/auth/logout', '/api/stripe-webhook'])
+// These two routes enforce their own rule: a preview write can touch only the
+// admin's own customer account. Every other preview write stays refused.
+const PREVIEW_OWN_CUSTOMER = new Set(['/api/garage', '/api/preview-booking'])
 
 // While an admin is previewing another role, refuse writes. Reads still use the
 // real admin account. Logout and switching the view stay available.
@@ -511,10 +514,56 @@ export async function previewMutationBlock(request, env) {
   if (!request || !MUTATING.has(request.method)) return null
   let path = ''
   try { path = new URL(request.url).pathname } catch { return null }
-  if (PREVIEW_OPEN.has(path)) return null
+  if (PREVIEW_OPEN.has(path) || PREVIEW_OWN_CUSTOMER.has(path)) return null
   const loaded = await readSession(request, env)
   if (!activePreview(loaded?.user, loaded?.session)) return null
   return json({error: 'Preview only. Switch back to Admin before changing anything.'}, 403)
+}
+
+export async function ownCustomerAccount(env, user) {
+  if (!user?.email) return null
+  const customer = await getUserByEmailRole(env, user.email, 'customer')
+  if (!customer || customer.role !== 'customer') return null
+  if (normEmail(customer.email) !== normEmail(user.email)) return null
+  return customer
+}
+
+export async function ownEmployeeAccount(env, user) {
+  if (!user?.email) return null
+  const employee = await getUserByEmailRole(env, user.email, 'employee')
+  if (!employee || employee.role !== 'employee') return null
+  if (normEmail(employee.email) !== normEmail(user.email)) return null
+  return employee
+}
+
+function employeeDetailerId(employee) {
+  const existing = String(employee?.detailer || '').trim().toLowerCase()
+  if (/^[a-z0-9]{1,40}$/.test(existing)) return existing
+  return detailerSlug(employee?.name)
+}
+
+// View as stays on the admin account. Job and garage checks use the same-email
+// customer or employee row, and never a synthetic detailer slug.
+export async function withPreviewAccounts(env, user, session) {
+  const pub = presentedUser(user, session)
+  if (!pub?.preview) return pub
+  if (pub.role === 'customer') {
+    const customer = await ownCustomerAccount(env, user)
+    if (customer) pub.customerId = customer.id
+    else pub.customerMissing = true
+  }
+  if (pub.role === 'employee') {
+    const employee = await ownEmployeeAccount(env, user)
+    if (employee) {
+      pub.employeeId = employee.id
+      pub.detailer = employeeDetailerId(employee)
+      pub.employeeStatus = employee.status || ''
+    } else {
+      delete pub.detailer
+      pub.employeeMissing = true
+    }
+  }
+  return pub
 }
 
 export async function startSession(env, request, user) {
@@ -642,7 +691,7 @@ export async function meGet({request, env}) {
   assertConfigured(env)
   const loaded = await readSession(request, env)
   if (!loaded) return json({user: null}, 401)
-  return json({user: presentedUser(loaded.user, loaded.session)})
+  return json({user: await withPreviewAccounts(env, loaded.user, loaded.session)})
 }
 
 export async function viewAsPost({request, env}) {
@@ -658,7 +707,7 @@ export async function viewAsPost({request, env}) {
   else session.viewAs = role
   delete session.password
   await r2put(env, `_auth/sessions/${loaded.sid}`, session)
-  return json({user: presentedUser(loaded.user, session)})
+  return json({user: await withPreviewAccounts(env, loaded.user, session)})
 }
 
 export async function mePatch({request, env}) {
