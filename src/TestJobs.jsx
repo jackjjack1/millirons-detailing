@@ -1,16 +1,18 @@
 import {useEffect, useState} from 'react'
 import {authAccounts} from './authApi.js'
 import {testJobsCreate, testJobsDelete} from './testJobsApi.js'
-import {applyTestJobs, isTestJob, loadBookings, TEST_JOB_LIMIT} from './testJobs.js'
+import {applyTestJobs, isTestJob, loadBookings, testJobChoices, TEST_JOB_LIMIT} from './testJobs.js'
 
 function label(account) {
-  const role = account.role === 'employee' ? 'Employee' : 'Customer'
-  const status = account.role === 'employee' && account.status && account.status !== 'Approved' ? ` · ${account.status}` : ''
+  const role = String(account.role || '').toLowerCase() === 'employee' ? 'Employee' : 'Customer'
+  const status = account.status && account.status !== 'Approved' ? ` · ${account.status}` : ''
   return `${account.name} · ${account.email} · ${role}${status}`
 }
 
 export function TestJobs({user, bookings, onBookings}) {
   const [accounts, setAccounts] = useState([])
+  const [loaded, setLoaded] = useState(false)
+  const [loadErr, setLoadErr] = useState('')
   const [customerPick, setCustomerPick] = useState('')
   const [employeePick, setEmployeePick] = useState('')
   const [count, setCount] = useState('1')
@@ -21,18 +23,24 @@ export function TestJobs({user, bookings, onBookings}) {
 
   useEffect(() => {
     let on = true
-    authAccounts().then(data => { if (on) setAccounts(data.accounts || []) }).catch(() => {})
+    authAccounts({summary: true}).then(data => {
+      if (!on) return
+      setAccounts(data.accounts || [])
+      setLoadErr('')
+    }).catch(error => {
+      if (!on) return
+      setLoadErr(error.message || 'Could not load accounts.')
+    }).finally(() => { if (on) setLoaded(true) })
     return () => { on = false }
   }, [])
 
-  const customers = accounts.filter(account => account.role === 'customer').sort((a, b) => a.email.localeCompare(b.email) || a.name.localeCompare(b.name))
-  const employees = accounts.filter(account => account.role === 'employee').sort((a, b) => a.email.localeCompare(b.email) || a.name.localeCompare(b.name))
-  const customerId = customers.some(account => account.id === customerPick) ? customerPick : ((customers.find(account => account.email === user?.email) || customers[0])?.id || '')
-  const employeeId = employees.some(account => account.id === employeePick) ? employeePick : ((employees.find(account => account.email === user?.email) || employees[0])?.id || '')
+  const choices = testJobChoices(accounts, user)
+  const customerId = choices.customers.some(account => account.id === customerPick) ? customerPick : (choices.customer?.id || '')
+  const employeeId = choices.employees.some(account => account.id === employeePick) ? employeePick : (choices.employee?.id || '')
 
   if (!user || user.role !== 'admin' || user.preview) return null
   const testCount = (bookings || []).filter(isTestJob).length
-  const ready = !!customerId && !!employeeId && !busy
+  const ready = !!customerId && !!employeeId && !busy && !loadErr
 
   const storeJobs = jobs => { onBookings(applyTestJobs(loadBookings(), jobs || [])) }
 
@@ -71,11 +79,13 @@ export function TestJobs({user, bookings, onBookings}) {
 
   return <div className="card flat test-jobs" id="test-jobs">
     <h3>Test jobs</h3>
-    <p className="muted">Create a sample booking and assign it to a customer and an employee, including your own accounts on this email. A test job is marked TEST. It is not charged, not emailed or texted, and not included in revenue.</p>
-    {!customers.length || !employees.length ? <p className="note leftn">Add a customer account and an employee account first. The same email can be both.</p> : <div className="two">
-      <label>Customer<select data-testid="test-job-customer" value={customerId} onChange={event => setCustomerPick(event.target.value)}>{customers.map(account => <option key={account.id} value={account.id}>{label(account)}</option>)}</select></label>
-      <label>Employee<select data-testid="test-job-employee" value={employeeId} onChange={event => setEmployeePick(event.target.value)}>{employees.map(account => <option key={account.id} value={account.id}>{label(account)}</option>)}</select></label>
-    </div>}
+    <p className="muted">Create a sample booking and assign it to a customer and an employee, including your own accounts on this email. A test job is marked TEST. It is not charged, not emailed or texted, and not included in revenue. Pending and unapproved employees can be assigned.</p>
+    {!loaded && <p className="muted">Loading accounts…</p>}
+    {loadErr && <p className="err" data-testid="test-job-load-error">{loadErr}</p>}
+    {loaded && !loadErr && !!choices.customers.length && <label>Customer<select data-testid="test-job-customer" value={customerId} onChange={event => setCustomerPick(event.target.value)}>{choices.customers.map(account => <option key={account.id} value={account.id}>{label(account)}</option>)}</select></label>}
+    {loaded && !loadErr && !!choices.employees.length && <label>Employee<select data-testid="test-job-employee" value={employeeId} onChange={event => setEmployeePick(event.target.value)}>{choices.employees.map(account => <option key={account.id} value={account.id}>{label(account)}</option>)}</select></label>}
+    {loaded && !loadErr && !choices.customers.length && <p className="note leftn" data-testid="test-job-missing-customer">No customer account yet. <a href="#/login?role=customer&new=1">Create a customer account</a>. The same email can also be your admin account.</p>}
+    {loaded && !loadErr && !choices.employees.length && <p className="note leftn" data-testid="test-job-missing-employee">No employee account yet. Pending and unapproved applications show up here after they are submitted. <a href="#/join">Open the detailer application</a>.</p>}
     <label>How many<select data-testid="test-job-count" value={count} onChange={event => setCount(event.target.value)}>
       <option value="1">One test job</option>
       <option value={String(TEST_JOB_LIMIT)}>Several varied test jobs</option>

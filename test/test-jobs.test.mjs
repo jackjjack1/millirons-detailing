@@ -6,13 +6,14 @@ import {priceFor} from '../functions/api/_stripe.js'
 import {onRequestPost as checkout} from '../functions/api/checkout.js'
 import {onRequestPost as webhook} from '../functions/api/stripe-webhook.js'
 import {onRequestGet as listJobs, onRequestPost as createJobs, onRequestDelete as deleteJobs} from '../functions/api/test-jobs.js'
+import {onRequestGet as accountsGet} from '../functions/api/auth/accounts.js'
 import {onRequestPost as setupPost} from '../functions/api/auth/setup.js'
 import {onRequestPost as register} from '../functions/api/auth/register.js'
 import {onRequestPost as apply} from '../functions/api/auth/apply.js'
 import {onRequestPost as viewAs} from '../functions/api/auth/view-as.js'
 import {
   TEST_JOB_LIMIT, TEST_SAMPLES, assignedToEmployee, buildTestJobs, futureWeekday, isTestJob,
-  mergeTestJobs, revenueOf, scheduleBookings,
+  mergeTestJobs, revenueOf, scheduleBookings, testJobChoices,
 } from '../src/testJobs.js'
 
 const SECRET = 'test-session-secret-must-be-32-characters'
@@ -314,4 +315,42 @@ test('an employee on another account does not receive someone else\'s test jobs'
   assert.deepEqual(hidden.json.jobs, [])
   const signedOut = await data(await listJobs({request: req('/api/test-jobs'), env: session.env}))
   assert.equal(signedOut.status, 401)
+})
+
+test('summary lists the admin email’s customer and pending employee, without application files', async () => {
+  const session = await accounts(envOf())
+  const employeeRow = rows(session.env, '_auth/users/').find(row => row.value.id === session.employee.id)
+  employeeRow.value.van = {photos: [{name: 'van.jpg', data: 'data:image/jpeg;base64,' + 'A'.repeat(8000)}], docs: []}
+  await session.env.PHOTOS.put(employeeRow.key, JSON.stringify(employeeRow.value))
+
+  const summary = await data(await accountsGet({request: req('/api/auth/accounts?summary=1', {cookie: session.adminCookie}), env: session.env}))
+  assert.equal(summary.status, 200)
+  const body = JSON.stringify(summary.json)
+  assert.equal(body.includes('data:image'), false)
+  assert.equal(body.includes('password'), false)
+  assert.equal(body.includes('PBKDF2'), false)
+  const customer = summary.json.accounts.find(account => account.role === 'customer' && account.email === session.admin.email)
+  const employee = summary.json.accounts.find(account => account.id === session.employee.id)
+  const admin = summary.json.accounts.find(account => account.id === session.admin.id)
+  assert.ok(customer)
+  assert.ok(admin)
+  assert.equal(customer.id === admin.id, false)
+  assert.equal(employee.role, 'employee')
+  assert.equal(employee.status, 'Pending review')
+  assert.equal(employee.email, session.admin.email)
+  assert.ok(summary.json.pending >= 1)
+
+  const choices = testJobChoices(summary.json.accounts, {email: 'Jordan@Millirons.test', role: 'admin'})
+  assert.equal(choices.customer.id, customer.id)
+  assert.equal(choices.employee.id, employee.id)
+  assert.equal(choices.customers.length >= 2, true)
+  assert.equal(choices.employees.some(account => account.status !== 'Approved'), true)
+
+  const created = await data(await createJobs({request: req('/api/test-jobs', {method: 'POST', cookie: session.adminCookie, body: {customerId: customer.id, employeeId: employee.id, count: 1}}), env: session.env}))
+  assert.equal(created.status, 201)
+  assert.equal(created.json.created, 1)
+  assert.equal(created.json.jobs[0].customerId, customer.id)
+  assert.equal(created.json.jobs[0].employeeId, employee.id)
+  assert.equal(created.json.jobs[0].isTest, true)
+  assert.equal(created.json.jobs[0].payment.status, 'Not charged')
 })

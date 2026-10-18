@@ -149,8 +149,12 @@ async function listPrefix(env, prefix) {
   do {
     const page = await env.PHOTOS.list({prefix, cursor})
     for (const obj of page.objects || []) {
-      const row = await r2get(env, obj.key)
-      if (row) out.push(row)
+      try {
+        const row = await r2get(env, obj.key)
+        if (row) out.push(row)
+      } catch {
+        // One unreadable object must not hide every other account.
+      }
     }
     cursor = page.truncated ? page.cursor : null
   } while (cursor)
@@ -174,6 +178,22 @@ export function publicUser(user) {
   if (!user) return null
   const {password: _password, ...rest} = user
   return rest
+}
+
+// Picker payload. The full account record includes application photos, which
+// can make the admin list fail on a phone. This card is the id, role, and status only.
+export function accountSummaryCard(user) {
+  if (!user || typeof user.id !== 'string' || !ROLES.includes(user.role)) return null
+  return {
+    id: user.id,
+    name: String(user.name || ''),
+    email: normEmail(user.email),
+    role: user.role,
+    status: String(user.status || ''),
+    detailer: typeof user.detailer === 'string' ? user.detailer : '',
+    city: typeof user.profile?.city === 'string' ? user.profile.city : '',
+    created: Number(user.created) || 0,
+  }
 }
 
 const ROLES = ['customer', 'employee', 'admin']
@@ -720,8 +740,10 @@ export async function applyPost({request, env}) {
   return sessionResponse({user: publicUser(user)}, 201, setCookie)
 }
 
-async function accountSummary(env) {
-  const accounts = (await listUsers(env)).map(publicUser).sort((a, b) => (b.created || 0) - (a.created || 0))
+async function accountSummary(env, {summary = false} = {}) {
+  const users = await listUsers(env)
+  const accounts = (summary ? users.map(accountSummaryCard).filter(Boolean) : users.map(publicUser))
+    .sort((a, b) => (b.created || 0) - (a.created || 0))
   const pending = accounts.filter(a => a.role === 'employee' && a.status === 'Pending review').length
   return {accounts, pending}
 }
@@ -729,7 +751,9 @@ async function accountSummary(env) {
 export async function accountsGet({request, env}) {
   const {error} = await requireAdmin(request, env)
   if (error) return error
-  return json(await accountSummary(env))
+  let summary = false
+  try { summary = new URL(request.url).searchParams.get('summary') === '1' } catch { summary = false }
+  return json(await accountSummary(env, {summary}))
 }
 
 export async function accountsPatch({request, env}) {
