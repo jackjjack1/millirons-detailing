@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import VinScanner, { extractVin } from './VinScanner'
-import { COLORS, TIERS, decodeVin, imageUrl, loadGarage, saveGarage, maskVin, titleCase } from './garage'
+import { COLORS, TIERS, decodeVin, fetchGarage, imageUrl, loadGarage, maskVin, putGarage, saveGarage, titleCase } from './garage'
 
 function Silhouette({type}){const path={
   Truck:'M8 70h120l8-20h36v18h14v12H8z M20 80a10 10 0 1020 0 10 10 0 10-20 0 M100 80a10 10 0 1020 0 10 10 0 10-20 0',
@@ -31,36 +31,77 @@ function GarageCard({v,selected,onSelect,onDefault,onRemove,compact}){
   </div></article>}
 
 export function useGarage(user){
- const[list,setList]=useState(()=>loadGarage(user))
- useEffect(()=>{setList(loadGarage(user))},[user?.email])
- const write=next=>{if(user?.preview)return list;setList(next);saveGarage(user,next);return next}
- const upsert=car=>{let next=[...list];const i=next.findIndex(x=>x.vin===car.vin);if(i>=0)next[i]={...next[i],...car};else{if(!next.length)car.isDefault=true;next=[car,...next]};return write(next)}
+ const remote=user?.role==='customer'&&!!user?.email
+ const[list,setList]=useState(()=>remote?[]:loadGarage(user))
+ const[note,setNote]=useState('')
+ const[err,setErr]=useState('')
+ const[missing,setMissing]=useState(false)
+ const[ready,setReady]=useState(!remote)
+ useEffect(()=>{
+  let on=true
+  if(!remote){setList(loadGarage(user));setNote('');setMissing(false);setErr('');setReady(true);return}
+  fetchGarage().then(data=>{
+   if(!on)return
+   setList(data.vehicles||[])
+   setMissing(!!data.missing)
+   setNote(data.savingToCustomer?'Saving to your customer account':'')
+   setErr('')
+  }).catch(error=>{if(on)setErr(error.message||'Could not load vehicles.')}).finally(()=>{if(on)setReady(true)})
+  return()=>{on=false}
+ },[user?.email,user?.role,user?.preview,user?.id,remote])
+ const write=async next=>{
+  if(remote){
+   const data=await putGarage(next)
+   setList(data.vehicles||[])
+   setMissing(false)
+   setNote(data.savingToCustomer?'Saving to your customer account':'')
+   setErr('')
+   return data.vehicles||[]
+  }
+  if(user?.preview){const message='Preview only. Vehicles are not saved in this view.';setErr(message);throw new Error(message)}
+  setList(next);saveGarage(user,next);return next
+ }
+ const upsert=async car=>{let next=[...list];const i=next.findIndex(x=>x.vin===car.vin);if(i>=0)next[i]={...next[i],...car};else{if(!next.length)car.isDefault=true;next=[car,...next]};return write(next)}
  const remove=id=>{const next=list.filter(x=>x.id!==id);if(next.length&&!next.some(x=>x.isDefault))next[0]={...next[0],isDefault:true};return write(next)}
  const setDefault=id=>write(list.map(x=>({...x,isDefault:x.id===id})))
- return {list,upsert,remove,setDefault,write}
+ return {list,upsert,remove,setDefault,write,note,err,missing,ready}
 }
 
 function AddFlow({onDone,onCancel}){
  const[vin,setVin]=useState(''),[busy,setBusy]=useState(false),[err,setErr]=useState(''),[draft,setDraft]=useState(null),[color,setColor]=useState('black')
  const decode=async v=>{const clean=extractVin(v)||v.toUpperCase().replace(/[^A-Z0-9]/g,'');if(!/^[A-HJ-NPR-Z0-9]{17}$/.test(clean)){setErr('Enter a valid 17-character VIN.');return}
   setBusy(true);setErr('');try{const d=await decodeVin(clean);setDraft({...d,id:'veh_'+Date.now().toString(36),color:'black'});setColor('black')}catch(e){setErr(e.message||'Could not decode VIN')}finally{setBusy(false)}}
- const save=()=>{onDone({...draft,color});setDraft(null);setVin('')}
+ const save=async()=>{try{await onDone({...draft,color});setDraft(null);setVin('')}catch(e){setErr(e.message||'Could not save that vehicle.')}}
  if(draft)return <div className="addpanel"><CarImg v={{...draft,color}}/><h3>Confirm color</h3><p className="muted">{draft.year} {draft.make} {draft.model} · {draft.type} · VIN {maskVin(draft.vin)}</p><p>VINs don’t encode paint — pick a color.</p><ColorPicker value={color} onChange={c=>{setColor(c);setDraft({...draft,color:c})}}/><div className="grow"><button type="button" className="pill" onClick={save}>Add to Garage</button><button type="button" className="link" onClick={()=>{setDraft(null);onCancel?.()}}>Cancel</button></div></div>
- return <div className="addpanel"><h3>Add a vehicle</h3><p className="muted">Scan, upload, or type a VIN. We’ll decode year, make, model and size from NHTSA.</p>
+ return <div className="addpanel"><h3>Add a vehicle</h3><p className="muted vin-help">Scan, upload, or type a VIN. We’ll decode year, make, model and size from NHTSA.</p>
   <VinScanner onVin={v=>{setVin(v);decode(v)}}/><label>VIN<input value={vin} onChange={e=>setVin(e.target.value.toUpperCase())} placeholder="17 characters" maxLength={17}/></label>
   {err&&<p className="err">{err}</p>}<div className="grow"><button type="button" className="pill" disabled={busy||vin.length<11} onClick={()=>decode(vin)}>{busy?'Decoding…':'Decode VIN'}</button><button type="button" className="link" onClick={onCancel}>Cancel</button></div></div>}
 
+function GarageNotice({user,note,err,missing}){
+ const blocked=!!user?.preview&&user?.role!=='customer'
+ return <>
+  {note&&<p className="muted" data-testid="garage-save-note">{note}</p>}
+  {missing&&<p className="note leftn" data-testid="garage-missing">No customer account on this email. <a href="#/login?role=customer&new=1">Create a customer account</a>.</p>}
+  {blocked&&<p className="muted">Preview only. Vehicles are not saved in this view.</p>}
+  {err&&<p className="err" data-testid="garage-error">{err}</p>}
+ </>
+}
 export function GaragePicker({user,value,onChange}){
- const {list,upsert,remove,setDefault}=useGarage(user);const[adding,setAdding]=useState(!list.length)
+ const {list,upsert,remove,setDefault,note,err,missing,ready}=useGarage(user);const[adding,setAdding]=useState(false)
+ const blocked=!!user?.preview&&user?.role!=='customer'
+ useEffect(()=>{if(ready&&!list.length)setAdding(true)},[ready,list.length])
  useEffect(()=>{if(!value&&list.length){const d=list.find(x=>x.isDefault)||list[0];onChange(d)}},[list,value,onChange])
- return <div className="garage"><div className="garage-h"><h3>Your Garage</h3>{user?.preview?<p className="muted">Preview only. Vehicles are not saved in this view.</p>:<button type="button" className="pill sm" onClick={()=>setAdding(true)}>+ Add vehicle</button>}</div>
-  {adding&&<AddFlow onCancel={()=>setAdding(false)} onDone={car=>{upsert(car);onChange(car);setAdding(false)}}/>}
+ return <div className="garage"><div className="garage-h"><h3>Your Garage</h3>{!blocked&&<button type="button" className="pill sm" onClick={()=>setAdding(true)}>+ Add vehicle</button>}</div>
+  <GarageNotice user={user} note={note} err={err} missing={missing}/>
+  {adding&&!blocked&&<AddFlow onCancel={()=>setAdding(false)} onDone={async car=>{await upsert(car);onChange(car);setAdding(false)}}/>}
   <div className="ggrid">{list.map(v=><GarageCard key={v.id} v={v} selected={value?.id===v.id||value?.vin===v.vin} onSelect={onChange} onDefault={setDefault} onRemove={id=>{remove(id);if(value?.id===id)onChange(null)}}/>)}</div>
   {!list.length&&!adding&&<p className="muted">No vehicles yet — add one with Scan VIN.</p>}</div>}
 
 export function GarageDashboard({user}){
- const {list,upsert,remove,setDefault}=useGarage(user);const[adding,setAdding]=useState(false)
- return <div className="garage dash"><div className="garage-h"><h2 className="h2l">My Garage</h2>{user?.preview?<p className="muted">Preview only. Vehicles are not saved in this view.</p>:<button type="button" className="pill sm" onClick={()=>setAdding(true)}>+ Add vehicle</button>}</div>
-  {adding&&<AddFlow onCancel={()=>setAdding(false)} onDone={car=>{upsert(car);setAdding(false)}}/>}
+ const {list,upsert,remove,setDefault,note,err,missing}=useGarage(user);const[adding,setAdding]=useState(false)
+ const blocked=!!user?.preview&&user?.role!=='customer'
+ return <div className="garage dash"><div className="garage-h"><h2 className="h2l">My Garage</h2>{!blocked&&<button type="button" className="pill sm" onClick={()=>setAdding(true)}>+ Add vehicle</button>}</div>
+  <GarageNotice user={user} note={note} err={err} missing={missing}/>
+  {adding&&!blocked&&<AddFlow onCancel={()=>setAdding(false)} onDone={async car=>{await upsert(car);setAdding(false)}}/>}
   <div className="ggrid">{list.map(v=><GarageCard key={v.id} v={v} onSelect={()=>{}} onDefault={setDefault} onRemove={remove}/>)}</div>
-  {!list.length&&!adding&&<p className="muted">Scan a VIN to add your first car. Sample tip: try 1C4RJFAG0FC625797 (2015 Jeep Grand Cherokee).</p>}</div>}
+  {!list.length&&!adding&&<p className="muted">Scan a VIN to add your first car. Try 1C4RJFAG0FC625797 (2015 Jeep Grand Cherokee).</p>}</div>}

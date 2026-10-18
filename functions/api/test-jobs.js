@@ -2,7 +2,7 @@
 // the private `_auth/test-jobs/` prefix and are mirrored into md_bookings.
 // This route never calls Stripe or Affirm and never sends email, SMS, or a notification.
 import {priceFor} from './_stripe.js'
-import {guard, json, fail, readJson, requireAdmin, readSession, presentedUser, getUserById} from '../_lib/auth.js'
+import {guard, json, fail, readJson, requireAdmin, readSession, withPreviewAccounts, getUserById} from '../_lib/auth.js'
 import {assignedToEmployee, buildTestJobs, isTestJob, TEST_JOB_LIMIT} from '../../src/testJobs.js'
 
 const BOOKING_ID = /^MD-[A-Z0-9]{4,20}$/
@@ -95,7 +95,24 @@ export async function isStoredTestJob(env, id) {
 async function viewer(request, env) {
   const loaded = await readSession(request, env)
   if (!loaded?.user) return {user: null, error: json({error: 'Sign in required.'}, 401)}
-  return {user: presentedUser(loaded.user, loaded.session), error: null}
+  return {user: await withPreviewAccounts(env, loaded.user, loaded.session), error: null}
+}
+
+export async function storeTestJob(env, job) {
+  const record = publish(job)
+  if (!record) throw fail('Could not create that test job.', 400)
+  const result = await env.PHOTOS.put(keyFor(record.id), JSON.stringify(record), {
+    httpMetadata: {contentType: 'application/json'},
+    onlyIf: {etagDoesNotMatch: '*'},
+  })
+  if (!result) throw fail('Could not create that test job. Try again.', 409)
+  return record
+}
+
+export async function jobsFor(request, env) {
+  const viewed = await viewer(request, env)
+  if (viewed.error) return viewed
+  return {user: viewed.user, jobs: await visibleJobs(env, viewed.user), error: null}
 }
 
 async function list({request, env}) {
@@ -136,13 +153,7 @@ async function create({request, env}) {
     job.payment = {method: 'Test', status: 'Not charged'}
     ready.push(publish(job))
   }
-  for (const record of ready) {
-    const result = await env.PHOTOS.put(keyFor(record.id), JSON.stringify(record), {
-      httpMetadata: {contentType: 'application/json'},
-      onlyIf: {etagDoesNotMatch: '*'},
-    })
-    if (!result) throw fail('Could not create that test job. Try again.', 409)
-  }
+  for (const record of ready) await storeTestJob(env, record)
   return json({jobs: await visibleJobs(env, user), created: ready.length}, 201)
 }
 

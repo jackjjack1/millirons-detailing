@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { services, vehicles } from './data'
 import { JobPanel, BeforeAfter, jobState } from './JobPhotos'
 import { TestBadge } from './TestBadge'
-import { assignedToEmployee } from './testJobs'
+import { assignedToEmployee, customerBooking } from './testJobs'
 const LS=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}}, SET=(k,v)=>localStorage.setItem(k,JSON.stringify(v))
 const sname=id=>services.find(s=>s.id===id)?.name||id
 const ini=n=>(n||'?').split(' ').map(x=>x[0]).join('').slice(0,2)
@@ -19,7 +19,7 @@ const readKey=u=>`md_read_${u.email||u.name}`
 export const unread=(id,u)=>{const seen=LS(readKey(u),{})[id]||'';return getMsgs(id).filter(m=>m.ts>seen&&!isMine(m,u)).length}
 const markRead=(id,u)=>{const r=LS(readKey(u),{});r[id]=new Date().toISOString();SET(readKey(u),r)}
 const isMine=(m,u)=>m.from.role===u.role&&(u.role!=='employee'||m.from.detailer===u.detailer)&&(u.role!=='customer'||m.from.email===u.email)
-export const canSee=(b,u)=>u&&(u.role==='admin'||(u.role==='employee'&&b.detailer===u.detailer)||(u.role==='customer'&&b.email===u.email))
+export const canSee=(b,u)=>u&&(u.role==='admin'||(u.role==='employee'&&assignedToEmployee(b,u))||(u.role==='customer'&&customerBooking(b,u)))
 
 // ── List of bookings (used by all roles) ──
 export function BookingList({bookings,user,title='Upcoming & active',emptyText='No upcoming bookings.'}){const[showPast,setShowPast]=useState(false)
