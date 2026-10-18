@@ -1,5 +1,5 @@
 // Approved catalog. quoteBooking() is the only price calculation.
-// Profiles, reviews, and hours below the catalog are sample content.
+// Hours below the catalog are a posted schedule, not a list of people.
 // Checkout must ignore client totals and charge this quote.
 export const AFFIRM_MIN_USD = 50
 
@@ -106,40 +106,6 @@ export const hours = [
   { day:'Mon–Fri', open:'8:00 AM – 6:00 PM' },
   { day:'Saturday', open:'8:00 AM – 5:00 PM' },
   { day:'Sunday', open:'9:00 AM – 3:00 PM' },
-]
-export const detailers = [
-  { id:'marcus', name:'Marcus Reed', city:'Buckhead, Atlanta', rating:4.9, reviews:312, years:8,
-    grad:'linear-gradient(135deg,#1d1d1f,#434344)',
-    bio:'Ceramic and paint-correction specialist. Eight years mobile across Buckhead and Midtown. ASE-adjacent detailing certs; insured and bonded.',
-    specialties:['Ceramic','Paint correction','Exotics'],
-    sampleReviews:[
-      { name:'Priya K.', text:'Car looked brand new. Marcus was early and meticulous.', stars:5 },
-      { name:'Tom H.', text:'Best ceramic job I have had in Atlanta.', stars:5 },
-    ]},
-  { id:'ana', name:'Ana Torres', city:'Midtown, Atlanta', rating:4.8, reviews:207, years:5,
-    grad:'linear-gradient(135deg,#86868b,#3a3a3c)',
-    bio:'Interior perfectionist. Pet hair, stains, and odors are no match. Serves Midtown, Old Fourth Ward, and Inman Park.',
-    specialties:['Interior','Odor removal','Pet hair'],
-    sampleReviews:[
-      { name:'James R.', text:'Got every dog hair out of my SUV. Amazing.', stars:5 },
-      { name:'Elena M.', text:'Friendly, thorough, fair. Booking again.', stars:5 },
-    ]},
-  { id:'devon', name:'Devon Park', city:'Decatur, GA', rating:4.9, reviews:158, years:6,
-    grad:'linear-gradient(135deg,#a1a1a6,#48484a)',
-    bio:'Eco-friendly waterless and low-water detailing for apartments and garages. Fleet accounts welcome.',
-    specialties:['Waterless','Fleet','Apartments'],
-    sampleReviews:[
-      { name:'Chris L.', text:'Quiet waterless wash in my garage. Perfect for Decatur.', stars:5 },
-      { name:'Sam P.', text:'Handles our small fleet every month.', stars:4 },
-    ]},
-  { id:'lena', name:'Lena Brooks', city:'Sandy Springs, GA', rating:5.0, reviews:94, years:4,
-    grad:'linear-gradient(135deg,#2c2c2e,#636366)',
-    bio:'Luxury and exotic vehicle care with white-glove service. North Atlanta and Perimeter focus.',
-    specialties:['Exotics','Wax','Premium'],
-    sampleReviews:[
-      { name:'Alex W.', text:'Treated my Porsche like her own. 10/10.', stars:5 },
-      { name:'Nina S.', text:'Punctual and obsessively clean.', stars:5 },
-    ]},
 ]
 export const faq = [
   { q:'Do you come to me?', a:'Yes. Millirons Detailing is fully mobile across metro Atlanta. We need a safe parking spot and access to water/power when possible (waterless options available).' },
