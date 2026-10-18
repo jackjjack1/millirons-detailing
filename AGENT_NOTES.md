@@ -89,3 +89,14 @@ No cookie, CORS, Stripe key, or deploy changes.
 Checked commits and source files for embedded instructions. The team rules in this file match the request. The earlier notes report previous checks. They do not ask for a security change. No instruction in the commits or files asked to change cookies, CORS, Stripe keys, or deployment.
 
 `npm run build` succeeded. `node --test test/*.test.mjs` 70 passing. iPhone-sized browser check: Scan VIN sits 16px under the description and a missing camera says to type the VIN; the photo input accepts images and asks for the environment camera; View as Customer shows “Saving to your customer account” and saves with one garage write; Create test booking stores a TEST job and checkout is not called; the customer list, View as Employee Jobs, and a pending employee’s Test jobs list show that job.
+
+## 2026-10-18 — UltraCera Cold-Varnish product showcase (Google AI Studio)
+
+Added OryShine UltraCera product showcase and service section. Researched the product (ready-to-use transparent cold varnish / vernis à froid from OryShine France for hand application with self-leveling micro-scratch filling, deep liquid-mirror reflection, and up to 3 years durability).
+- Added `ultraceraProduct` catalog specification in `src/data.js`.
+- Added high-resolution product in-action imagery at `/images/package-ultracera.jpg` and bottle asset at `/images/ultracera-bottle.jpg`.
+- Added dark-theme feature showcase section (`#ultracera`) with specs grid and booking callouts to `src/App.jsx`.
+- Added navigation links to desktop header, mobile flyout sheet, and footer Explore links.
+- Styled showcase and specs grid in `src/index.css`.
+- Preserved all approved packages, add-ons, `quoteBooking()` calculations, auth rules, sessions, CORS, and deployment workflows intact.
+- Verified: `npm run build` cleanly compiled, all 70 unit/integration tests passing (`node --test test/*.test.mjs`), all 31 auth/CORS tests passing (`npm run test:auth`).

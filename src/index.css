@@ -197,3 +197,13 @@ table.count input,table.count select{margin:0;padding:8px 10px;font-size:14px;mi
 .test-badge{display:inline-block;margin-left:8px;padding:1px 7px 0;border:1.5px solid #000;border-radius:980px;font-size:10px;font-weight:700;letter-spacing:.14em;line-height:16px;vertical-align:2px;background:#fff;color:#000}
 .test-jobs p{margin:0 0 14px}.test-jobs .two{margin-top:4px}
 .test-confirm{background:#f5f5f7;border-radius:16px;padding:14px 16px;margin-top:8px}.test-confirm p{margin:0 0 12px}
+.showcase{display:grid;grid-template-columns:1.1fr 1fr;gap:40px;align-items:center;max-width:1024px;margin:0 auto}
+.showcase-art{position:relative;border-radius:28px;overflow:hidden;background:#111;box-shadow:0 30px 90px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.08)}
+.showcase-img{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover}
+.showcase-art .tag{top:18px;left:18px;right:auto;background:rgba(0,0,0,.8);color:#f5f5f7;border:1px solid rgba(255,255,255,.15);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.showcase-body{display:flex;flex-direction:column;gap:8px}
+.specs-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:18px 0 10px}
+.spec-card{background:#111;border:1px solid #2c2c2e;border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:4px}
+.spec-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#86868b;font-weight:600}
+.spec-val{font-size:14px;color:#f5f5f7;font-weight:600;line-height:1.35}
+@media(max-width:900px){.showcase{grid-template-columns:1fr;gap:28px}.specs-grid{grid-template-columns:1fr}}

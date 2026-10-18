@@ -1,6 +1,6 @@
 import {stripeMode,startCheckout,checkStatus} from './stripePay.js'
 import { useEffect, useState } from 'react'
-import { services, addons, vehicles, faq, howSteps, hours, quoteBooking, AFFIRM_MIN_USD, priceSizeForBodyTier, vehicleNote } from './data'
+import { services, addons, vehicles, faq, howSteps, hours, quoteBooking, AFFIRM_MIN_USD, priceSizeForBodyTier, vehicleNote, ultraceraProduct } from './data'
 
 import BookingCalendar, { slotsFor } from './BookingCalendar'
 import { GaragePicker, GarageDashboard } from './Garage'
@@ -33,8 +33,8 @@ function Nav({user,setUser}){const[open,setOpen]=useState(false);const h=useHash
  useEffect(()=>{document.body.style.overflow=open?'hidden':'';return()=>{document.body.style.overflow=''}},[open])
  const out=async()=>{await authLogout().catch(()=>{});localStorage.removeItem('md_session');setUser(null);setOpen(false);location.hash='/login'}
  const acct=user?<a href="#/dashboard" className="acct">{user.name.split(' ')[0]}</a>:<a href="#/login" className="acct">Sign in</a>
- return <><nav className="nav"><div className="nav-in"><Logo/><div className="links"><a className="dl" href="#/#services">Services</a><a className="dl" href="#/#addons">Add-ons</a><a className="dl" href="#/detailers">Detailers</a><a className="dl" href="#/#faq">FAQ</a><a className="dl" href="#/join">Become a Detailer</a>{acct}<a href="#/book" className="pill sm">Book</a><button className="burger" aria-label={open?'Close menu':'Open menu'} aria-expanded={open} onClick={()=>setOpen(!open)}><span/><span/></button></div></div></nav>
- {open&&<div className="sheet" role="dialog" aria-label="Menu"><div className="sheet-in">{[['#/','Home'],['#/#services','Services'],['#/#addons','Add-ons'],['#/detailers','Detailers'],['#/#faq','FAQ'],['#/join','Become a Detailer'],['#/book','Book a detail']].map(([href,l])=><a key={l} href={href} onClick={()=>setOpen(false)}>{l}</a>)}
+ return <><nav className="nav"><div className="nav-in"><Logo/><div className="links"><a className="dl" href="#/#services">Services</a><a className="dl" href="#/#ultracera">UltraCera</a><a className="dl" href="#/#addons">Add-ons</a><a className="dl" href="#/detailers">Detailers</a><a className="dl" href="#/#faq">FAQ</a><a className="dl" href="#/join">Become a Detailer</a>{acct}<a href="#/book" className="pill sm">Book</a><button className="burger" aria-label={open?'Close menu':'Open menu'} aria-expanded={open} onClick={()=>setOpen(!open)}><span/><span/></button></div></div></nav>
+ {open&&<div className="sheet" role="dialog" aria-label="Menu"><div className="sheet-in">{[['#/','Home'],['#/#services','Services'],['#/#ultracera','UltraCera Glaze'],['#/#addons','Add-ons'],['#/detailers','Detailers'],['#/#faq','FAQ'],['#/join','Become a Detailer'],['#/book','Book a detail']].map(([href,l])=><a key={l} href={href} onClick={()=>setOpen(false)}>{l}</a>)}
  <hr/>{user?<><a href="#/dashboard" onClick={()=>setOpen(false)}>Dashboard<small>{user.name} · {user.preview?`Viewing as ${user.role}`:user.role}</small></a><button className="sheet-out" onClick={out}>Sign out</button></>:<a href="#/login" onClick={()=>setOpen(false)}>Sign in<small>Customer · Employee · Admin</small></a>}</div></div>}</>}
 function useDetailers(){const[list,setList]=useState([]);const[ready,setReady]=useState(false);useEffect(()=>{let on=true;detailersList().then(d=>{if(on)setList(d.detailers||[])}).catch(()=>{if(on)setList([])}).finally(()=>{if(on)setReady(true)});return()=>{on=false}},[]);return{list,ready}}
 function DetailerGrid({list,ready}){if(!ready)return <p className="muted">Loading detailers…</p>;if(!list.length)return <p className="note" data-testid="detailers-empty">No detailers yet.</p>;return <div className="grid4">{list.map(d=><DCard key={d.id} d={d}/>)}</div>}
@@ -43,6 +43,34 @@ function Home(){const{list,ready}=useDetailers();return <>
  <section className="sec light center" id="how"><h2 className="reveal">How it works.</h2><div className="grid3 steps">{howSteps.map(s=><div className="reveal" key={s.n}><div className="num">{s.n}</div><h3>{s.t}</h3><p className="muted">{s.d}</p></div>)}</div></section>
  <section id="services" className="sec light"><h2 className="reveal">Pick your level of perfect.</h2><p className="note">Sedan / coupe prices, shown as from $. Larger vehicles add a package surcharge.</p><div className="grid2">{services.map(s=><div key={s.id} className="card reveal"><PackageArt s={s}/><h3>{s.name}</h3><p>{s.desc}</p><ul className="incl">{s.includes.map(i=><li key={i}>{i}</li>)}</ul><div className="price"><span>from </span>${s.price}<span> · {s.time}</span></div><p className="affirm-line">or 4 interest-free payments of {money(s.price/4)} on a sedan</p><a className="pill sm" href={`#/book?s=${s.id}`}>Book</a></div>)}</div></section>
  <section className="sec dark"><h2 className="reveal">Priced by vehicle size.</h2><p className="sub center reveal">Surcharge applies to the package only. Add-ons are the same on every vehicle.</p><div className="tiers">{vehicles.map(v=><div className="tier reveal" key={v.id}><b>{v.name}</b><span>{vehicleNote(v)}</span></div>)}</div></section>
+ <section id="ultracera" className="sec dark reveal">
+  <div className="showcase">
+   <div className="showcase-art">
+    <img src={ultraceraProduct.image} alt="Hand applying OryShine UltraCera cold varnish clear coat to vehicle hood" className="showcase-img" loading="lazy"/>
+    <span className="tag">In action · Liquid glass finish</span>
+   </div>
+   <div className="showcase-body">
+    <p className="eyebrow">{ultraceraProduct.tag} · {ultraceraProduct.brand} ({ultraceraProduct.origin})</p>
+    <h2>{ultraceraProduct.title}</h2>
+    <p className="sub leftn">{ultraceraProduct.description}</p>
+    <ul className="incl">
+     {ultraceraProduct.highlights.map(h => <li key={h}>{h}</li>)}
+    </ul>
+    <div className="specs-grid">
+     {ultraceraProduct.specs.map(s => (
+      <div key={s.label} className="spec-card">
+       <span className="spec-label">{s.label}</span>
+       <b className="spec-val">{s.val}</b>
+      </div>
+     ))}
+    </div>
+    <div className="cta leftn">
+     <a className="pill" href="#/book?s=premium">Book with Premium Detail</a>
+     <a className="link" href="#/#services">View all packages ›</a>
+    </div>
+   </div>
+  </div>
+ </section>
  <section id="addons" className="sec light"><h2 className="reveal">Add-ons.</h2><p className="note">Flat price on every package and every vehicle size.</p><div className="grid3">{addons.map(a=><div className="card reveal" key={a.id}><h3>{a.name}</h3><p>{a.desc}</p><div className="price">+${a.price}</div></div>)}</div></section>
  <section className="sec dark"><h2 className="reveal">Atlanta pros you can trust.</h2><p className="sub center reveal">Approved detailers on the Millirons team.</p><DetailerGrid list={list} ready={ready}/></section>
  <section className="sec light center"><h2 className="reveal">Hours.</h2><p className="note">Sample hours.</p><div className="hours card reveal">{hours.map(h=><div className="row" key={h.day}><span>{h.day}</span><b>{h.open}</b></div>)}</div></section>
@@ -190,4 +218,4 @@ export default function App(){const h=useHash();const[path,q='']=h.split('?');co
  useEffect(()=>{const m=h.match(/#(\w+)$/);if(m)setTimeout(()=>document.getElementById(m[1])?.scrollIntoView({behavior:'smooth'}),60)},[h])
  let page=<Home/>;const pp=path.split('#')[0]
  if(pp==='/detailers')page=<Detailers/>;else if(pp.startsWith('/detailer/'))page=<Profile id={pp.split('/')[2]}/>;else if(pp==='/book')page=!authReady?<section className="sec top center"><p className="muted">Loading…</p></section>:<Book key={`${h}:${user?.id||''}:${user?.viewAs||''}`} q={q} user={user} setBookings={setBookings}/>;else if(pp==='/join')page=<Apply key={q} q={q}/>;else if(pp==='/login')page=<Login key={q} q={q} setUser={setUser}/>;else if(pp.startsWith('/invite/'))page=<AcceptInvite key={pp} token={pp.split('/')[2]} setUser={setUser}/>;else if(pp==='/booking/success')page=<PaySuccess q={q} setBookings={setBookings}/>;else if(pp.startsWith('/booking/'))page=<BookingDetail id={pp.split('/')[2]} user={user} all={bookings}/>; else if(pp==='/dashboard')page=!authReady?<section className="sec top center"><p className="muted">Loading…</p></section>:<Dashboard key={`${user?.viewAs||''}:${user?.role||''}:${user?.employeeId||''}`} user={user} setUser={setUser} bookings={bookings} setBookings={setBookings} jobsErr={jobsErr}/>
- return <><Nav user={user} setUser={setUser}/>{authReady&&<ViewAsBar user={user} setUser={setUser}/>}<main>{page}</main><footer><div className="fgrid"><div><Logo/><p>Mobile car detailing serving metro Atlanta, GA.</p><p>Call {PHONE} <small>({PHONE_NOTE})</small></p></div><div><b>Explore</b><a href="#/#services">Services</a><a href="#/#addons">Add-ons</a><a href="#/detailers">Detailers</a><a href="#/#faq">FAQ</a></div><div><b>Company</b><a href="#/join">Become a Detailer</a><a href="#/login">Sign in</a><a href="#/book">Book</a></div><div><b>Hours (sample)</b>{hours.map(x=><span key={x.day}>{x.day}: {x.open}</span>)}</div></div><p className="copy">Hero photo “2012 Lamborghini Sesto Elemento” by <a href="https://commons.wikimedia.org/wiki/File:2012_Lamborghini_Sesto_Elemento.jpg" target="_blank" rel="noopener">MrWalkr</a>, licensed <a href="https://creativecommons.org/licenses/by-sa/4.0" target="_blank" rel="noopener">CC BY-SA 4.0</a>, resized. © 2026 {BRAND} · Atlanta, GA · Package prices start at the sedan / coupe rate. Profiles and reviews are sample data.</p></footer></>}
+  return <><Nav user={user} setUser={setUser}/>{authReady&&<ViewAsBar user={user} setUser={setUser}/>}<main>{page}</main><footer><div className="fgrid"><div><Logo/><p>Mobile car detailing serving metro Atlanta, GA.</p><p>Call {PHONE} <small>({PHONE_NOTE})</small></p></div><div><b>Explore</b><a href="#/#services">Services</a><a href="#/#ultracera">UltraCera Glaze</a><a href="#/#addons">Add-ons</a><a href="#/detailers">Detailers</a><a href="#/#faq">FAQ</a></div><div><b>Company</b><a href="#/join">Become a Detailer</a><a href="#/login">Sign in</a><a href="#/book">Book</a></div><div><b>Hours (sample)</b>{hours.map(x=><span key={x.day}>{x.day}: {x.open}</span>)}</div></div><p className="copy">Hero photo “2012 Lamborghini Sesto Elemento” by <a href="https://commons.wikimedia.org/wiki/File:2012_Lamborghini_Sesto_Elemento.jpg" target="_blank" rel="noopener">MrWalkr</a>, licensed <a href="https://creativecommons.org/licenses/by-sa/4.0" target="_blank" rel="noopener">CC BY-SA 4.0</a>, resized. © 2026 {BRAND} · Atlanta, GA · Package prices start at the sedan / coupe rate. Profiles and reviews are sample data.</p></footer></>}

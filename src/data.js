@@ -120,3 +120,29 @@ export const howSteps = [
   { n:2, t:'Pick vehicle & time', d:'Sedan, SUV, or truck / van. The size surcharge is on the package only. Then choose a date, time, and detailer.' },
   { n:3, t:'We come to you', d:'Meet in your driveway or garage across metro Atlanta.' },
 ]
+
+export const ultraceraProduct = {
+  id: 'ultracera',
+  title: 'UltraCera Cold-Varnish Ceramic Glaze',
+  subtitle: 'Ready-to-use cold varnish (vernis à froid) engineered by OryShine for deep paint restoration and lasting mirror reflection.',
+  image: '/images/package-ultracera.jpg',
+  bottleImage: '/images/ultracera-bottle.jpg',
+  brand: 'OryShine',
+  origin: 'France',
+  tag: 'Specialty Finish Treatment',
+  specs: [
+    { label: 'Finish', val: 'Self-leveling liquid mirror reflection' },
+    { label: 'Durability', val: 'Up to 3 years paint protection' },
+    { label: 'Technology', val: 'Ready-to-use cold varnish clear coat' },
+    { label: 'Application', val: 'Microfiber hand buff (no spray gun needed)' },
+    { label: 'Curing Time', val: '24–48 hrs ambient (6–12 hrs mild heat)' },
+    { label: 'Protection', val: 'Hydrophobic shield against UV, grime & oxidation' },
+  ],
+  description: 'ULTRACERA is an advanced ready-to-use transparent cold varnish (vernis à froid) manufactured in France by OryShine. Engineered for precise hand application, its self-leveling formula fills micro-scratches and minor clear-coat imperfections, restores deep optical depth, and cures into an intense, glass-like mirror gloss with up to 3 years of durable protection against UV, road grime, and environmental contamination.',
+  highlights: [
+    'Self-leveling cold varnish fills micro-swirls and surface hazing',
+    'Deep liquid-mirror reflection that enhances base coat clarity',
+    'Up to 3-year hydrophobic barrier against water spots, UV, and oxidation',
+    'Gentle hand-applied finish with specialized microfiber application',
+  ],
+}
