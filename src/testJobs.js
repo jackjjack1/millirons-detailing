@@ -192,3 +192,22 @@ export function applyTestJobs(existing, incoming) {
   saveBookings(next)
   return next
 }
+
+function roleOf(account) {
+  return String(account?.role || '').trim().toLowerCase()
+}
+
+function byName(a, b) {
+  return String(a.email || '').localeCompare(String(b.email || '')) || String(a.name || '').localeCompare(String(b.name || ''))
+}
+
+// Every customer and every employee, including pending and unapproved.
+// The signed-in admin's own account on the same email is preferred.
+export function testJobChoices(accounts, user) {
+  const rows = Array.isArray(accounts) ? accounts.filter(account => account && account.id) : []
+  const customers = rows.filter(account => roleOf(account) === 'customer').sort(byName)
+  const employees = rows.filter(account => roleOf(account) === 'employee').sort(byName)
+  const email = String(user?.email || '').trim().toLowerCase()
+  const prefer = list => list.find(account => String(account.email || '').trim().toLowerCase() === email) || list[0] || null
+  return {customers, employees, customer: prefer(customers), employee: prefer(employees)}
+}

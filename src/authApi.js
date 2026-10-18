@@ -55,7 +55,7 @@ export function authEmail(email, role) {
 }
 export const authApply = body => api('/api/auth/apply', {method: 'POST', body})
 export const authPatchMe = body => api('/api/auth/me', {method: 'PATCH', body})
-export const authAccounts = () => api('/api/auth/accounts')
+export const authAccounts = ({summary = false} = {}) => api('/api/auth/accounts' + (summary ? '?summary=1' : ''))
 export const authDecide = body => api('/api/auth/accounts', {method: 'PATCH', body})
 export const authInvites = () => api('/api/auth/invites')
 export const authCreateInvite = body => api('/api/auth/invites', {method: 'POST', body})
