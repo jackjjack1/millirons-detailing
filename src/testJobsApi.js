@@ -20,3 +20,4 @@ async function api(path, {method = 'GET', body} = {}) {
 export const testJobsList = () => api('/api/test-jobs')
 export const testJobsCreate = body => api('/api/test-jobs', {method: 'POST', body})
 export const testJobsDelete = () => api('/api/test-jobs', {method: 'DELETE', body: {confirm: true}})
+export const previewTestBooking = booking => api('/api/preview-booking', {method: 'POST', body: {booking}})

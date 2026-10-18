@@ -2,6 +2,7 @@
 // quoteBooking() prices every sample. The server saves priceFor(), which must match.
 // These records are not charges and are not messages.
 import {quoteBooking} from './data.js'
+import {assessVin} from './vin.js'
 
 export const TEST_SAMPLES = [
   {
@@ -83,10 +84,118 @@ export function employeeDetailer(employee) {
   return slug || 'detailer'
 }
 
+export function sameAccountEmail(a, b) {
+  const left = String(a || '').trim().toLowerCase()
+  const right = String(b || '').trim().toLowerCase()
+  return !!left && left === right
+}
+
+export function customerBooking(job, user) {
+  return sameAccountEmail(job?.email, user?.email)
+}
+
 export function assignedToEmployee(job, user) {
   if (!job || !user) return false
-  if (job.employeeId && user.id && job.employeeId === user.id) return true
-  return !!(user.detailer && job.detailer === user.detailer)
+  const ids = [user.id, user.employeeId].filter(id => typeof id === 'string' && id)
+  if (job.employeeId && ids.includes(job.employeeId)) return true
+  if (user.preview && user.employeeMissing) return false
+  return !!(user.detailer && job.detailer && job.detailer === user.detailer)
+}
+
+const PREVIEW_TIMES = new Set(['8:00 AM', '9:30 AM', '11:00 AM', '12:30 PM', '2:00 PM', '3:30 PM', '5:00 PM'])
+
+function clipText(value, max) {
+  return String(value ?? '').trim().slice(0, max)
+}
+
+// A booking made while an admin is previewing. The customer is always the
+// admin's own customer account. Price, test flag, and contact preference are
+// fixed here so the route cannot charge or message anyone.
+export function previewTestRecord({customer, employee, booking, quote, now = Date.now(), nonce = 'P'}) {
+  const form = booking && typeof booking === 'object' ? booking : {}
+  if (!customer?.id || !customer?.email) {
+    const error = new Error('No customer account on this email. Create a customer account, then book again.')
+    error.status = 400
+    throw error
+  }
+  const email = String(customer.email).trim().toLowerCase()
+  const asked = String(form.email || '').trim().toLowerCase()
+  if ((asked && asked !== email) || (form.customerId && form.customerId !== customer.id)) {
+    const error = new Error('A preview booking can only use your own customer account.')
+    error.status = 403
+    throw error
+  }
+  if (!quote?.ok) {
+    const error = new Error(quote?.error || 'Could not price that booking.')
+    error.status = 400
+    throw error
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(form.date || '')) {
+    const error = new Error('Choose a date.')
+    error.status = 400
+    throw error
+  }
+  if (!PREVIEW_TIMES.has(form.time)) {
+    const error = new Error('Choose a time.')
+    error.status = 400
+    throw error
+  }
+  if (!clipText(form.address, 120) || !clipText(form.city, 60) || !clipText(form.zip, 12)) {
+    const error = new Error('Enter the address.')
+    error.status = 400
+    throw error
+  }
+  if (!clipText(form.phone, 30)) {
+    const error = new Error('Enter a phone number.')
+    error.status = 400
+    throw error
+  }
+  let vin = ''
+  if (clipText(form.vin, 40)) {
+    const assessed = assessVin(form.vin)
+    if (!assessed.ok) {
+      const error = new Error(assessed.formatError)
+      error.status = 400
+      throw error
+    }
+    vin = assessed.vin
+  }
+  const staff = employee?.id ? employee : null
+  return {
+    id: testJobId(now, 0, nonce),
+    isTest: true,
+    service: quote.serviceId || form.service,
+    addons: Array.isArray(quote.addons) ? quote.addons.map(addon => addon.id) : [],
+    vehicle: quote.vehicleId || form.vehicle,
+    address: clipText(form.address, 120),
+    unit: clipText(form.unit, 40),
+    city: clipText(form.city, 60),
+    zip: clipText(form.zip, 12),
+    parking: clipText(form.parking, 20),
+    water: clipText(form.water, 8),
+    notes: clipText(form.notes, 500),
+    make: clipText(form.make, 40),
+    model: clipText(form.model, 40),
+    year: clipText(form.year, 8),
+    color: clipText(form.color, 24),
+    plate: clipText(form.plate, 16),
+    vin,
+    date: form.date,
+    time: form.time,
+    detailer: staff ? employeeDetailer(staff) : '',
+    detailerName: staff ? clipText(staff.name, 80) : '',
+    employeeId: staff?.id || '',
+    customerId: customer.id,
+    name: clipText(customer.name, 80),
+    email,
+    phone: clipText(form.phone, 30),
+    contactPref: 'none',
+    total: quote.usd,
+    surchargeUsd: quote.surchargeUsd,
+    status: 'Confirmed',
+    payment: {method: 'Test', status: 'Not charged'},
+    created: new Date(now).toISOString(),
+  }
 }
 
 // Real bookings only. Public availability must ignore test jobs.
