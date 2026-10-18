@@ -9,6 +9,7 @@ const size = (touchless, standard, extended) => ({
   exterior: standard,
   full: extended,
   premium: extended,
+  ultracera: extended,
 })
 
 export const services = [
@@ -36,6 +37,11 @@ export const services = [
     desc:'Full Detail plus paint decontamination and a 6-month spray sealant. Ideal before a sale or event.',
     includes:['Full Detail','Iron remover','Spray sealant','Tire shine','Final inspection'],
     grad:'linear-gradient(135deg,#1d1d1f,#636366)' },
+  { id:'ultracera', name:'UltraCera Ceramic Glaze', price:1200, time:'6–8 hrs',
+    image:'/images/package-ultracera.jpg',
+    desc:'OryShine France ready-to-use cold varnish (vernis à froid). Self-leveling micro-scratch fill, liquid mirror reflection, and 3-year protective glaze.',
+    includes:['Paint decontamination & foam soak','Clay bar & alcohol prep','Multi-layer hand buffed cold varnish','Micro-scratch & swirl leveling','3-year hydrophobic UV barrier','Wheels, tires & glass finish'],
+    grad:'linear-gradient(135deg,#0a0a0c,#2c2c2e)' },
 ]
 export const addons = [
   { id:'pet', name:'Pet hair removal', price:65, desc:'Extra suction & brushes for stubborn pet hair.' },
@@ -58,7 +64,7 @@ export function vehicleNote(vehicle){
   for(const service of services){
     const amt=vehicle.surcharge[service.id]
     const hit=groups.find(g=>g.amt===amt)
-    const label=service.id==='touchless'?'Touchless Wash':service.id==='interior'?'Interior':service.id==='exterior'?'Exterior':service.id==='full'?'Full':'Premium'
+    const label=service.id==='touchless'?'Touchless Wash':service.id==='interior'?'Interior':service.id==='exterior'?'Exterior':service.id==='full'?'Full':service.id==='premium'?'Premium':'UltraCera'
     if(hit)hit.labels.push(label)
     else groups.push({amt,labels:[label]})
   }

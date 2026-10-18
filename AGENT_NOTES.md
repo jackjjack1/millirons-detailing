@@ -100,3 +100,15 @@ Added OryShine UltraCera product showcase and service section. Researched the pr
 - Styled showcase and specs grid in `src/index.css`.
 - Preserved all approved packages, add-ons, `quoteBooking()` calculations, auth rules, sessions, CORS, and deployment workflows intact.
 - Verified: `npm run build` cleanly compiled, all 70 unit/integration tests passing (`node --test test/*.test.mjs`), all 31 auth/CORS tests passing (`npm run test:auth`).
+
+## 2026-10-18 — UltraCera Standalone Package ($1,200) (Google AI Studio)
+
+Per Jordan's request, converted UltraCera Cold-Varnish Ceramic Glaze into its own standalone flagship service package rather than pairing it with Premium Detail, priced at $1,200 base (sedan/coupe) with vehicle extended surcharges (+40 SUV / +80 Truck).
+- Branch: `feat/ultracera-package` (working branch, preserving main per team rule 1).
+- Updated `services` catalog in `src/data.js` to add `{ id: 'ultracera', name: 'UltraCera Ceramic Glaze', price: 1200, time: '6–8 hrs', ... }`.
+- Updated `size()` and `vehicleNote()` in `src/data.js` to group UltraCera into the extended vehicle surcharge tiers (+$0 sedan, +$40 SUV, +$80 truck).
+- Updated showcase call-to-action button in `src/App.jsx` to book the package directly at `#/book?s=ultracera` for $1,200.
+- Updated `test/price.test.mjs` test matrices and verified:
+  - `npm run build` compiled cleanly.
+  - `node --test test/*.test.mjs` 70/70 passing.
+  - `npm run test:auth` 31/31 passing.

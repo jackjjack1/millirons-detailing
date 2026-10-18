@@ -10,14 +10,15 @@ const SEDAN = {
   interior: 149,
   full: 259,
   premium: 379,
+  ultracera: 1200,
 }
 const SURCHARGE = {
-  sedan: {touchless: 0, interior: 0, exterior: 0, full: 0, premium: 0},
-  suv: {touchless: 20, interior: 30, exterior: 30, full: 40, premium: 40},
-  truck: {touchless: 40, interior: 60, exterior: 60, full: 80, premium: 80},
+  sedan: {touchless: 0, interior: 0, exterior: 0, full: 0, premium: 0, ultracera: 0},
+  suv: {touchless: 20, interior: 30, exterior: 30, full: 40, premium: 40, ultracera: 40},
+  truck: {touchless: 40, interior: 60, exterior: 60, full: 80, premium: 80, ultracera: 80},
 }
 
-test('catalog lists Touchless Wash first and renames Premium Detail without changing its id', () => {
+test('catalog lists Touchless Wash first, renames Premium Detail, and includes UltraCera package', () => {
   assert.equal(services[0].id, 'touchless')
   assert.equal(services[0].name, 'Touchless Wash')
   assert.equal(services[0].price, 59)
@@ -28,7 +29,10 @@ test('catalog lists Touchless Wash first and renames Premium Detail without chan
   const premium = services.find(s => s.id === 'premium')
   assert.equal(premium.name, 'Premium Detail')
   assert.equal(premium.price, 379)
-  assert.deepEqual(services.map(s => s.price), [59, 149, 139, 259, 379])
+  const ultracera = services.find(s => s.id === 'ultracera')
+  assert.equal(ultracera.name, 'UltraCera Ceramic Glaze')
+  assert.equal(ultracera.price, 1200)
+  assert.deepEqual(services.map(s => s.price), [59, 149, 139, 259, 379, 1200])
 })
 
 test('add-ons use the approved flat prices, including acid wheel and touchless wash', () => {
@@ -63,10 +67,10 @@ test('package surcharges match the sedan, SUV, and truck schedules', () => {
   assert.equal(vehicleNote(vehicles.find(v => v.id === 'sedan')), 'Base price')
   assert.match(vehicleNote(vehicles.find(v => v.id === 'suv')), /\+\$20 Touchless Wash/)
   assert.match(vehicleNote(vehicles.find(v => v.id === 'suv')), /\+\$30 Interior & Exterior/)
-  assert.match(vehicleNote(vehicles.find(v => v.id === 'suv')), /\+\$40 Full & Premium/)
+  assert.match(vehicleNote(vehicles.find(v => v.id === 'suv')), /\+\$40 Full & Premium & UltraCera/)
   assert.match(vehicleNote(vehicles.find(v => v.id === 'truck')), /\+\$40 Touchless Wash/)
   assert.match(vehicleNote(vehicles.find(v => v.id === 'truck')), /\+\$60 Interior & Exterior/)
-  assert.match(vehicleNote(vehicles.find(v => v.id === 'truck')), /\+\$80 Full & Premium/)
+  assert.match(vehicleNote(vehicles.find(v => v.id === 'truck')), /\+\$80 Full & Premium & UltraCera/)
 })
 
 test('add-ons do not take a vehicle surcharge and Touchless wash is allowed on every package', () => {
