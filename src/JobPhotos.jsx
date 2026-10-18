@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { photoStore, apiAvailable, onPhotosChanged, retryPending } from './photoStore'
 import { audit } from './Ops'
+import { TestBadge } from './TestBadge'
 const LS=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}}, SET=(k,v)=>localStorage.setItem(k,JSON.stringify(v))
 export const jobState=id=>LS('md_jobs',{})[id]||{status:'Not started'}
 const setJob=(id,v)=>{const a=LS('md_jobs',{});a[id]={...(a[id]||{}),...v};SET('md_jobs',a)}
@@ -38,7 +39,7 @@ export function JobPanel({b,user}){const[job,setJobS]=useState(()=>jobState(b.id
  const start=()=>{upd({status:'In progress',started:Date.now(),by:user.name});audit(user,'Job started',`${b.id}`)}
  const complete=()=>{if(!before.length||!after.length)return setErr('Add at least one Before and one After photo.');upd({status:'Completed',completed:Date.now()});audit(user,'Job completed',`${b.id} · ${before.length} before / ${after.length} after photos`)}
  const S=['Start job','Before photos','Do the work','After photos','Complete']
- return <div className="card flat jobpanel"><div className="jp-h"><h3>Job</h3><span className={'spill s-'+job.status.toLowerCase().replace(/\s+/g,'-')}>{job.status}</span></div>
+ return <div className="card flat jobpanel"><div className="jp-h"><h3>Job <TestBadge job={b}/></h3><span className={'spill s-'+job.status.toLowerCase().replace(/\s+/g,'-')}>{job.status}</span></div>
   <ol className="jp-steps">{S.map((s,i)=><li key={s} className={i<step||job.status==='Completed'?'done':i===step?'cur':''}><span>{i<step||job.status==='Completed'?'✓':i+1}</span>{s}</li>)}</ol>
   {preview&&<p className="muted">Preview only. Job updates and photos are not saved in this view.</p>}
   {job.status==='Not started'&&<button className="ck-btn" onClick={start} disabled={preview}>Start job</button>}
