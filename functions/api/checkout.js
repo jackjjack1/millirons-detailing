@@ -3,11 +3,17 @@
 // An admin View as preview is refused before any Stripe session is created.
 import {json,priceFor,stripe,AFFIRM_MIN_USD,paymentMethodsFor} from './_stripe.js'
 import {previewMutationBlock} from '../_lib/auth.js'
+import {isStoredTestJob} from './test-jobs.js'
 export const onRequestGet=({env})=>json({ok:true,live:!!env.STRIPE_SECRET_KEY,affirmMinUsd:AFFIRM_MIN_USD})
 export async function onRequestPost({request,env}){
   const blocked=await previewMutationBlock(request,env);if(blocked)return blocked
+  let body,badJson=false
+  try{body=await request.json()}catch{badJson=true}
+  const b=body?.booking
+  // A test job never opens a Stripe Checkout session, so Affirm is never offered for it either.
+  if(!badJson&&b&&(b.isTest===true||await isStoredTestJob(env,b.id)))return json({error:'Test jobs are not charged.'},400)
   if(!env.STRIPE_SECRET_KEY)return json({error:'STRIPE_SECRET_KEY not configured'},503)
-  let b;try{({booking:b}=await request.json())}catch{return json({error:'bad json'},400)}
+  if(badJson)return json({error:'bad json'},400)
   if(!b||!/^MD-[A-Z0-9]{4,20}$/.test(b.id||''))return json({error:'bad booking id'},400)
   const p=priceFor({service:b.service,vehicle:b.vehicle,addons:b.addons});if(!p.ok)return json({error:p.error},400)
   const cents=p.cents,origin=new URL(request.url).origin,methods=paymentMethodsFor(p.usd)
