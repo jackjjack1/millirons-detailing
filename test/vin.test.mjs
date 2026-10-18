@@ -3,15 +3,22 @@ import test from 'node:test'
 import { cleanVan } from '../functions/_lib/auth.js'
 import {
   CHECK_DIGIT_WARN,
+  VIN_CAMERA_ATTEMPTS,
+  VIN_PHOTO_ACCEPT,
+  VIN_PHOTO_CAPTURE,
   applyVinPrefill,
   assessVin,
   cameraFallbackCopy,
+  decodeVinImage,
   expectedCheckDigit,
   extractVin,
   fieldVin,
   lookupVin,
+  openEnvironmentCamera,
+  primeVinVideo,
   selectVinScanner,
 } from '../src/vin.js'
+import {readFileSync} from 'node:fs'
 
 const HONDA = '1HGCM82633A004352'
 
@@ -85,6 +92,102 @@ test('BarcodeDetector is used only when Code 39 and Data Matrix are both support
   assert.equal(selectVinScanner(['data_matrix']), 'zxing')
   assert.equal(selectVinScanner([]), 'zxing')
   assert.equal(selectVinScanner(null), 'zxing')
+})
+
+test('the rear camera is requested inside the tap, then a looser camera is used', async () => {
+  const calls = []
+  const stream = {id: 'rear'}
+  const first = await openEnvironmentCamera(async constraints => {
+    calls.push(constraints)
+    return stream
+  })
+  assert.equal(first, stream)
+  assert.equal(calls.length, 1)
+  assert.deepEqual(calls[0], VIN_CAMERA_ATTEMPTS[0])
+  assert.deepEqual(calls[0].video.facingMode, {ideal: 'environment'})
+
+  const fallen = []
+  const anyCamera = {id: 'any'}
+  const second = await openEnvironmentCamera(async constraints => {
+    fallen.push(constraints)
+    if (constraints.video?.facingMode) {
+      const error = new Error('overconstrained')
+      error.name = 'OverconstrainedError'
+      throw error
+    }
+    return anyCamera
+  })
+  assert.equal(second, anyCamera)
+  assert.equal(fallen.length, 3)
+  assert.equal(fallen[1].video.facingMode, 'environment')
+  assert.deepEqual(fallen[2], {video: true, audio: false})
+
+  const denied = []
+  await assert.rejects(() => openEnvironmentCamera(async constraints => {
+    denied.push(constraints)
+    const error = new Error('denied')
+    error.name = 'NotAllowedError'
+    throw error
+  }), error => error.name === 'NotAllowedError')
+  assert.equal(denied.length, 1)
+  await assert.rejects(() => openEnvironmentCamera(undefined), error => error.name === 'NotFoundError')
+})
+
+test('a photo of a VIN barcode decodes, and a bad file says why', async () => {
+  const honda = '1HGCM82633A004352'
+  const urls = []
+  const originalBitmap = globalThis.createImageBitmap
+  globalThis.createImageBitmap = async () => ({close() {}})
+  try {
+  const fromDetector = await decodeVinImage({type: 'image/jpeg', name: 'vin.jpg'}, {
+    detect: async () => [{rawValue: `*${honda}*`}],
+    decodeUrl: async () => { throw new Error('should not run') },
+    createUrl: () => { throw new Error('should not run') },
+  })
+  assert.equal(fromDetector, honda)
+  const fromZxing = await decodeVinImage({type: 'image/jpeg'}, {
+    detect: async () => [],
+    decodeUrl: async url => { urls.push(url); return honda },
+    createUrl: () => 'blob:vin',
+    revokeUrl: () => {},
+  })
+  assert.equal(fromZxing, honda)
+  assert.deepEqual(urls, ['blob:vin'])
+  await assert.rejects(() => decodeVinImage({type: 'application/pdf'}, {}), /not an image/)
+  await assert.rejects(() => decodeVinImage(null, {}), /Choose a photo/)
+  await assert.rejects(() => decodeVinImage({type: 'image/png'}, {
+    detect: async () => [],
+    decodeUrl: async () => { throw new Error('not found') },
+    createUrl: () => 'blob:x',
+    revokeUrl: () => {},
+  }), /No VIN barcode/)
+  } finally {
+    globalThis.createImageBitmap = originalBitmap
+  }
+  assert.equal(VIN_PHOTO_ACCEPT, 'image/*')
+  assert.equal(VIN_PHOTO_CAPTURE, 'environment')
+  const video = {setAttribute() {}, muted: false, playsInline: false}
+  primeVinVideo(video)
+  assert.equal(video.muted, true)
+  assert.equal(video.playsInline, true)
+})
+
+test('the scanner asks for the camera on the tap and the photo input is not display none', () => {
+  const scanner = readFileSync(new URL('../src/VinScanner.jsx', import.meta.url), 'utf8')
+  const css = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8')
+  assert.match(scanner, /openEnvironmentCamera\(getUserMedia\)/)
+  assert.match(scanner, /primeVinVideo/)
+  assert.match(scanner, /playsInline/)
+  assert.match(scanner, /decodeFromStream/)
+  assert.doesNotMatch(scanner, /decodeFromConstraints/)
+  assert.match(scanner, /accept=\{VIN_PHOTO_ACCEPT\}/)
+  assert.match(scanner, /capture=\{VIN_PHOTO_CAPTURE\}/)
+  assert.doesNotMatch(scanner, /type="file"[^>]*hidden/)
+  assert.match(scanner, /data-testid="vin-scan-error"/)
+  assert.match(css, /\.vinscan\{[^}]*margin:0/)
+  assert.doesNotMatch(css, /\.vinscan\{margin:-/)
+  assert.match(css, /\.vin-help\{[^}]*margin:0 0 16px/)
+  assert.match(css, /\.vin-photo input\{[^}]*opacity:0/)
 })
 
 test('camera denial and a missing camera tell the applicant to type the VIN', () => {

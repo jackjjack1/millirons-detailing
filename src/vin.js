@@ -78,6 +78,88 @@ export function cameraFallbackCopy(error) {
   return 'Camera unavailable. Type the VIN instead.'
 }
 
+// The first attempt prefers the rear camera and still succeeds when the device
+// only has one camera. Later attempts run only after a constraint failure.
+// Permission denial stops the list so a second prompt is not opened.
+export const VIN_CAMERA_ATTEMPTS = [
+  {video: {facingMode: {ideal: 'environment'}}, audio: false},
+  {video: {facingMode: 'environment'}, audio: false},
+  {video: true, audio: false},
+]
+const CAMERA_DENIED = new Set(['NotAllowedError', 'PermissionDeniedError', 'SecurityError'])
+export const VIN_PHOTO_ACCEPT = 'image/*'
+export const VIN_PHOTO_CAPTURE = 'environment'
+
+export async function openEnvironmentCamera(getUserMedia) {
+  if (typeof getUserMedia !== 'function') {
+    const error = new Error('Camera unavailable.')
+    error.name = 'NotFoundError'
+    throw error
+  }
+  let last = null
+  for (const constraints of VIN_CAMERA_ATTEMPTS) {
+    try {
+      return await getUserMedia(constraints)
+    } catch (error) {
+      last = error
+      if (CAMERA_DENIED.has(error?.name)) throw error
+    }
+  }
+  if (last) throw last
+  const error = new Error('No camera was found.')
+  error.name = 'NotFoundError'
+  throw error
+}
+
+// iOS Safari will not play a camera preview without these flags, and it drops
+// the user gesture if they are set after an awaited permission prompt.
+export function primeVinVideo(video) {
+  if (!video) return
+  video.muted = true
+  video.defaultMuted = true
+  video.playsInline = true
+  video.setAttribute('playsinline', 'true')
+  video.setAttribute('webkit-playsinline', 'true')
+  video.setAttribute('muted', 'true')
+  video.setAttribute('autoplay', 'true')
+}
+
+export async function decodeVinImage(file, {detect, decodeUrl, createUrl, revokeUrl} = {}) {
+  if (!file) throw new Error('Choose a photo of the VIN barcode.')
+  const type = String(file.type || '')
+  if (type && !type.startsWith('image/')) throw new Error('That file is not an image. Choose a photo of the VIN barcode.')
+  let text = ''
+  if (typeof detect === 'function' && typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(file)
+      try {
+        const codes = await detect(bitmap)
+        text = (codes || []).map(code => code?.rawValue || '').join(' ')
+      } finally {
+        bitmap.close?.()
+      }
+    } catch {
+      if (typeof decodeUrl !== 'function') throw new Error('Could not read that photo. Try another image, or type the VIN.')
+    }
+  }
+  if (!extractVin(text)) {
+    if (typeof decodeUrl !== 'function') throw new Error('Could not read that photo. Try another image, or type the VIN.')
+    const makeUrl = createUrl || (blob => URL.createObjectURL(blob))
+    const dropUrl = revokeUrl || (url => URL.revokeObjectURL(url))
+    const url = makeUrl(file)
+    try {
+      text = await decodeUrl(url)
+    } catch {
+      throw new Error('No VIN barcode in that photo. Type the VIN instead.')
+    } finally {
+      dropUrl(url)
+    }
+  }
+  const vin = extractVin(String(text || ''))
+  if (!vin) throw new Error('No VIN barcode in that photo. Type the VIN instead.')
+  return vin
+}
+
 function titleCase(value) {
   return String(value || '').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
 }
