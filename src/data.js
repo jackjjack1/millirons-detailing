@@ -44,14 +44,14 @@ export const services = [
     grad:'linear-gradient(135deg,#0a0a0c,#2c2c2e)' },
 ]
 export const addons = [
-  { id:'pet', name:'Pet hair removal', price:65, desc:'Extra suction & brushes for stubborn pet hair.' },
-  { id:'engine', name:'Engine bay clean', price:75, desc:'Degrease and dress under the hood (safe for modern engines).' },
-  { id:'ceramic', name:'Ceramic boost spray', price:129, desc:'SiO₂ spray coating for 3–6 months of gloss & beading.' },
-  { id:'headlight', name:'Headlight restoration', price:89, desc:'Both headlights. Oxidized lenses sanded, polished, and sealed.' },
-  { id:'odor', name:'Odor treatment', price:79, desc:'Ozone / enzyme treatment for smoke, pets, or mildew.' },
-  { id:'leather', name:'Leather condition', price:49, desc:'Clean and condition seats and door panels.' },
-  { id:'acid-wheel', name:'Acid wheel restoration', price:99, desc:'Deep acid wheel cleaning that removes baked-on brake dust and contamination using Wow Kleaners ICE wheel cleaner.' },
-  { id:'touchless-wash', name:'Touchless wash', price:39, desc:'WashChems Pro 30 touchless exterior wash. Same price on every package.' },
+  { id:'pet', name:'Pet hair removal', price:65, image:'/images/addon-pet.jpg', desc:'Extra suction & brushes for stubborn pet hair.' },
+  { id:'engine', name:'Engine bay clean', price:75, image:'/images/addon-engine.jpg', desc:'Degrease and dress under the hood (safe for modern engines).' },
+  { id:'ceramic', name:'Ceramic boost spray', price:129, image:'/images/addon-ceramic.jpg', desc:'SiO₂ spray coating for 3–6 months of gloss & beading.' },
+  { id:'headlight', name:'Headlight restoration', price:89, image:'/images/addon-headlight.jpg', desc:'Both headlights. Oxidized lenses sanded, polished, and sealed.' },
+  { id:'odor', name:'Odor treatment', price:79, image:'/images/addon-odor.jpg', desc:'Ozone / enzyme treatment for smoke, pets, or mildew.' },
+  { id:'leather', name:'Leather condition', price:49, image:'/images/addon-leather.jpg', desc:'Clean and condition seats and door panels.' },
+  { id:'acid-wheel', name:'Acid wheel restoration', price:99, image:'/images/addon-acid-wheel.jpg', desc:'Deep acid wheel cleaning that removes baked-on brake dust and contamination using Wow Kleaners ICE wheel cleaner.' },
+  { id:'touchless-wash', name:'Touchless wash', price:39, image:'/images/addon-touchless-wash.jpg', desc:'WashChems Pro 30 touchless exterior wash. Same price on every package.' },
 ]
 export const vehicles = [
   { id:'sedan', name:'Sedan / coupe', surcharge:size(0, 0, 0) },

@@ -112,3 +112,20 @@ Per Jordan's request, converted UltraCera Cold-Varnish Ceramic Glaze into its ow
   - `npm run build` compiled cleanly.
   - `node --test test/*.test.mjs` 70/70 passing.
   - `npm run test:auth` 31/31 passing.
+
+## 2026-10-19 — Add-on imagery & visual cards (Google AI Studio)
+
+Added photography assets for all 8 catalog add-ons with Apple-style media cards on the home page and photo thumbnails in the booking flow:
+- Generated and added high-resolution detailing photography in `public/images/`:
+  - `addon-pet.jpg` (pet hair removal)
+  - `addon-engine.jpg` (engine bay clean)
+  - `addon-ceramic.jpg` (ceramic boost spray)
+  - `addon-headlight.jpg` (headlight restoration)
+  - `addon-odor.jpg` (odor treatment)
+  - `addon-leather.jpg` (leather condition)
+  - `addon-acid-wheel.jpg` (acid wheel restoration)
+  - `addon-touchless-wash.jpg` (touchless wash)
+- Associated `image` fields in `src/data.js` addons array (preserving prices and flat schedule).
+- Created `AddonArt` component in `src/App.jsx` and added `.addon-media` and `.addon-img` styles to `src/index.css`.
+- Rendered image cards on Home page Add-ons grid and step 1 of Book flow.
+- Verified: `npm run build` succeeded, `node --test test/*.test.mjs` (70/70 passing), `npm run test:auth` (31/31 passing).
