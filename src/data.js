@@ -3,8 +3,7 @@
 // Checkout must ignore client totals and charge this quote.
 export const AFFIRM_MIN_USD = 50
 
-const size = (touchless, standard, extended) => ({
-  touchless,
+const size = (standard, extended) => ({
   interior: standard,
   exterior: standard,
   full: extended,
@@ -13,10 +12,6 @@ const size = (touchless, standard, extended) => ({
 })
 
 export const services = [
-  { id:'touchless', name:'Touchless Wash', price:59, time:'45–60 min',
-    desc:'Scratch-free maintenance wash, great for ceramic-coated or delicate paint.',
-    includes:['Pre-rinse','WashChems Pro 30 touchless foam soak','Wheel & tire spray and rinse','High-pressure rinse, including wheel wells and lower panels','Spot-free final rinse','Touchless air/blower dry','Tire shine and exterior glass'],
-    grad:'linear-gradient(160deg,#f5f5f7,#6e6e73 55%,#1d1d1f)' },
   { id:'interior', name:'Interior Detail', price:149, time:'1.5–2 hrs',
     image:'/images/package-interior.jpg',
     desc:'Full cabin refresh: vacuum every crevice, wipe-down of plastics and leather, glass inside, mats shampooed, light stain treatment.',
@@ -54,9 +49,9 @@ export const addons = [
   { id:'touchless-wash', name:'Touchless wash', price:39, image:'/images/addon-touchless-wash.jpg', desc:'WashChems Pro 30 touchless exterior wash. Same price on every package.' },
 ]
 export const vehicles = [
-  { id:'sedan', name:'Sedan / coupe', surcharge:size(0, 0, 0) },
-  { id:'suv', name:'SUV or crossover', surcharge:size(20, 30, 40) },
-  { id:'truck', name:'3-row SUV, truck or van', surcharge:size(40, 60, 80) },
+  { id:'sedan', name:'Sedan / coupe', surcharge:size(0, 0) },
+  { id:'suv', name:'SUV or crossover', surcharge:size(30, 40) },
+  { id:'truck', name:'3-row SUV, truck or van', surcharge:size(60, 80) },
 ]
 
 export function vehicleNote(vehicle){
@@ -64,7 +59,7 @@ export function vehicleNote(vehicle){
   for(const service of services){
     const amt=vehicle.surcharge[service.id]
     const hit=groups.find(g=>g.amt===amt)
-    const label=service.id==='touchless'?'Touchless Wash':service.id==='interior'?'Interior':service.id==='exterior'?'Exterior':service.id==='full'?'Full':service.id==='premium'?'Premium':'UltraCera'
+    const label=service.id==='interior'?'Interior':service.id==='exterior'?'Exterior':service.id==='full'?'Full':service.id==='premium'?'Premium':'UltraCera'
     if(hit)hit.labels.push(label)
     else groups.push({amt,labels:[label]})
   }
@@ -116,13 +111,13 @@ export const hours = [
 export const faq = [
   { q:'Do you come to me?', a:'Yes. Millirons Detailing is fully mobile across metro Atlanta. We need a safe parking spot and access to water/power when possible (waterless options available).' },
   { q:'Are these real prices?', a:'Yes. The package price shown is the sedan / coupe rate. An SUV or crossover, and a 3-row SUV, truck, or van, add a surcharge to the package only. Add-ons cost the same on every vehicle and every package.' },
-  { q:'How long does a Full Detail take?', a:'Typically 3.5–4.5 hours depending on vehicle size and condition. A Touchless Wash is about 45–60 minutes. Your detailer confirms a window at booking.' },
+  { q:'How long does a Full Detail take?', a:'Typically 3.5–4.5 hours depending on vehicle size and condition. Interior and Exterior take about 1.5–2.5 hours. Your detailer confirms a window at booking.' },
   { q:'What payment methods?', a:'Pay in full today with a card through Stripe Checkout. Affirm pay-over-time is offered on that screen when the booking is $50 or more. If checkout is unavailable, the form stays in a labeled demo mode and does not charge a card.' },
   { q:'Coverage area?', a:'Metro Atlanta: Buckhead, Midtown, Decatur, Sandy Springs, and surrounding neighborhoods (sample list).' },
   { q:'Can I cancel or reschedule?', a:'In a live product you would manage that from confirmation email. Here, clear localStorage to reset demo bookings.' },
 ]
 export const howSteps = [
-  { n:1, t:'Choose a package', d:'Touchless Wash, Interior, Exterior, Full, or Premium Detail — plus optional add-ons.' },
+  { n:1, t:'Choose a package', d:'Interior, Exterior, Full, Premium Detail, or UltraCera Glaze — plus optional add-ons.' },
   { n:2, t:'Pick vehicle & time', d:'Sedan, SUV, or truck / van. The size surcharge is on the package only. Then choose a date, time, and detailer.' },
   { n:3, t:'We come to you', d:'Meet in your driveway or garage across metro Atlanta.' },
 ]

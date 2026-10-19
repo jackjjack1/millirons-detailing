@@ -129,3 +129,13 @@ Added photography assets for all 8 catalog add-ons with Apple-style media cards 
 - Created `AddonArt` component in `src/App.jsx` and added `.addon-media` and `.addon-img` styles to `src/index.css`.
 - Rendered image cards on Home page Add-ons grid and step 1 of Book flow.
 - Verified: `npm run build` succeeded, `node --test test/*.test.mjs` (70/70 passing), `npm run test:auth` (31/31 passing).
+
+## 2026-10-19 — Remove Touchless Wash package from catalog (Google AI Studio)
+
+Per Jordan's request with mobile UI screenshot, removed the "Touchless Wash" package card from the service catalog:
+- Removed `touchless` from `services` and `size()` in `src/data.js` (Touchless wash remains available as an optional $39 add-on).
+- Catalog now consists of: Interior Detail ($149), Exterior Detail ($139), Full Detail ($259), Premium Detail ($379), and UltraCera Ceramic Glaze ($1,200).
+- Updated vehicle surcharge schedule and `vehicleNote()` in `src/data.js`.
+- Updated test sample 1 in `src/testJobs.js` to use `ultracera`.
+- Updated unit test assertions in `test/price.test.mjs`.
+- Verified: `npm run build` cleanly compiled, all 70 unit/integration tests passing (`node --test test/*.test.mjs`), all 31 auth/CORS tests passing (`npm run test:auth`).

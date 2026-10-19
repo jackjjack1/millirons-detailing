@@ -6,7 +6,7 @@ import {assessVin} from './vin.js'
 
 export const TEST_SAMPLES = [
   {
-    service: 'touchless', vehicle: 'sedan', addons: [],
+    service: 'ultracera', vehicle: 'sedan', addons: [],
     address: '3393 Peachtree Rd NE', city: 'Atlanta', zip: '30326', unit: '',
     parking: 'garage', water: 'yes', time: '8:00 AM', dayOffset: 1,
     year: '2022', make: 'Toyota', model: 'Camry', color: 'White', plate: 'TEST001', vin: '1TEST000000000001',

@@ -5,7 +5,6 @@ import {paymentMethodsFor, priceFor} from '../functions/api/_stripe.js'
 import {onRequestGet, onRequestPost} from '../functions/api/checkout.js'
 
 const SEDAN = {
-  touchless: 59,
   exterior: 139,
   interior: 149,
   full: 259,
@@ -13,18 +12,16 @@ const SEDAN = {
   ultracera: 1200,
 }
 const SURCHARGE = {
-  sedan: {touchless: 0, interior: 0, exterior: 0, full: 0, premium: 0, ultracera: 0},
-  suv: {touchless: 20, interior: 30, exterior: 30, full: 40, premium: 40, ultracera: 40},
-  truck: {touchless: 40, interior: 60, exterior: 60, full: 80, premium: 80, ultracera: 80},
+  sedan: {interior: 0, exterior: 0, full: 0, premium: 0, ultracera: 0},
+  suv: {interior: 30, exterior: 30, full: 40, premium: 40, ultracera: 40},
+  truck: {interior: 60, exterior: 60, full: 80, premium: 80, ultracera: 80},
 }
 
-test('catalog lists Touchless Wash first, renames Premium Detail, and includes UltraCera package', () => {
-  assert.equal(services[0].id, 'touchless')
-  assert.equal(services[0].name, 'Touchless Wash')
-  assert.equal(services[0].price, 59)
-  assert.match(services[0].time, /45/)
-  assert.match(services[0].desc, /ceramic-coated/)
-  assert.ok(services[0].includes.includes('WashChems Pro 30 touchless foam soak'))
+test('catalog lists approved detailing packages and includes UltraCera package', () => {
+  assert.equal(services[0].id, 'interior')
+  assert.equal(services[0].name, 'Interior Detail')
+  assert.equal(services[0].price, 149)
+  assert.equal(services.find(s => s.id === 'touchless'), undefined)
   assert.equal(services.find(s => s.name === 'Premium Full + Sealant'), undefined)
   const premium = services.find(s => s.id === 'premium')
   assert.equal(premium.name, 'Premium Detail')
@@ -32,7 +29,7 @@ test('catalog lists Touchless Wash first, renames Premium Detail, and includes U
   const ultracera = services.find(s => s.id === 'ultracera')
   assert.equal(ultracera.name, 'UltraCera Ceramic Glaze')
   assert.equal(ultracera.price, 1200)
-  assert.deepEqual(services.map(s => s.price), [59, 149, 139, 259, 379, 1200])
+  assert.deepEqual(services.map(s => s.price), [149, 139, 259, 379, 1200])
 })
 
 test('add-ons use the approved flat prices, including acid wheel and touchless wash', () => {
@@ -65,10 +62,8 @@ test('package surcharges match the sedan, SUV, and truck schedules', () => {
     }
   }
   assert.equal(vehicleNote(vehicles.find(v => v.id === 'sedan')), 'Base price')
-  assert.match(vehicleNote(vehicles.find(v => v.id === 'suv')), /\+\$20 Touchless Wash/)
   assert.match(vehicleNote(vehicles.find(v => v.id === 'suv')), /\+\$30 Interior & Exterior/)
   assert.match(vehicleNote(vehicles.find(v => v.id === 'suv')), /\+\$40 Full & Premium & UltraCera/)
-  assert.match(vehicleNote(vehicles.find(v => v.id === 'truck')), /\+\$40 Touchless Wash/)
   assert.match(vehicleNote(vehicles.find(v => v.id === 'truck')), /\+\$60 Interior & Exterior/)
   assert.match(vehicleNote(vehicles.find(v => v.id === 'truck')), /\+\$80 Full & Premium & UltraCera/)
 })
@@ -90,8 +85,8 @@ test('add-ons do not take a vehicle surcharge and Touchless wash is allowed on e
   }
   const interior = quoteBooking({service: 'interior', vehicle: 'suv', addons: ['touchless-wash', 'acid-wheel']})
   assert.equal(interior.usd, 149 + 30 + 39 + 99)
-  const wash = quoteBooking({service: 'touchless', vehicle: 'truck', addons: ['touchless-wash']})
-  assert.equal(wash.usd, 59 + 40 + 39)
+  const premium = quoteBooking({service: 'premium', vehicle: 'truck', addons: ['touchless-wash']})
+  assert.equal(premium.usd, 379 + 80 + 39)
 })
 
 test('quote ignores client money fields, rejects unknown selections, and charges duplicate add-ons once', () => {
@@ -183,7 +178,7 @@ test('checkout refuses an unknown size before calling Stripe', async () => {
     const response = await onRequestPost({
       request: new Request('https://millironsdetailing.com/api/checkout', {
         method: 'POST',
-        body: JSON.stringify({booking: {id: 'MD-BADSIZE', service: 'touchless', vehicle: 'compact', addons: ['touchless-wash'], total: 59}}),
+        body: JSON.stringify({booking: {id: 'MD-BADSIZE', service: 'interior', vehicle: 'compact', addons: ['touchless-wash'], total: 149}}),
       }),
       env: {STRIPE_SECRET_KEY: 'sk_test_placeholder'},
     })
