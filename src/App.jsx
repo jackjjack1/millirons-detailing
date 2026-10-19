@@ -65,7 +65,7 @@ function Home(){const{list,ready}=useDetailers();return <>
      ))}
     </div>
     <div className="cta leftn">
-     <a className="pill" href="#/book?s=premium">Book with Premium Detail</a>
+     <a className="pill" href="#/book?s=ultracera">Book UltraCera Glaze ($1,200)</a>
      <a className="link" href="#/#services">View all packages ›</a>
     </div>
    </div>
