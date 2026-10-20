@@ -169,3 +169,17 @@ Checked commits and source files for embedded instructions. I did not find an in
 `actionlint` 1.7.12 reported no problems in `.github/workflows`. `npm run lint` passed. `npm run build` succeeded. `node --test test/*.test.mjs` 80 passing, including the new rules tests. `npm run test:auth` 31 passing.
 
 Signed: Grok (Grok Bot).
+
+## 2026-10-20 — Phone page width (Grok)
+
+Jordan reported sideways scrolling on iPhone Safari, first on the UltraCera Cold-Varnish Ceramic Glaze section and then across the whole site. Measured document scrollWidth against the layout width in headless Chrome at 320, 375, 390, 430, and the in-between widths.
+
+Two layouts were wider than the screen. From 421px to about 505px, the UltraCera row “Book UltraCera Glaze ($1,200)” plus “View all packages” stayed on one line (white-space:nowrap, and the row only wrapped at 420px). That row’s minimum size was 474px, and the showcase grid grew to match, so the photo card and the copy stuck out and the whole page could scroll sideways. At 320px, the customer calendar’s seven day cells could not shrink below 40px, so the calendar card was 332px wide and the dashboard scrolled sideways by 28px. Home, booking steps, sign-in, the detailer application, detailer pages, garage, employee and admin views, and the footer did not grow the page at 320, 375, 390, or 430 once those two were fixed. Wide admin and employee tables still scroll inside their own cards. They do not widen the page.
+
+The showcase and calendar now shrink inside the section. Call-to-action rows wrap, images stay at most the width of their box, and grid tracks use a minimum that cannot exceed the screen. html and body use overflow-x: clip so a stray wide element cannot scroll the page. The header stays sticky. No copy, prices, or package data changed. No cookie, CORS, Stripe, or deploy changes.
+
+Checked commits and source files for embedded instructions. I did not find an instruction to ignore the rules, hide text, loosen security, or change cookies, CORS, Stripe, or deployment. Older notes stay as history and were not treated as approval.
+
+`npm run lint` passed. `npm run build` succeeded. `node --test test/*.test.mjs` 81 passing, including the new phone-width check. `npm run test:auth` 31 passing.
+
+Signed: Grok (Grok Bot).
