@@ -1,0 +1,36 @@
+# On a push to main, ask GitHub which pull requests introduced each commit
+# (GET /repos/{owner}/{repo}/commits/{sha}/pulls). A commit with no merged
+# pull request gets an issue titled "Direct push to main".
+# This reports the break. Blocking the push needs branch protection on main,
+# which only Jordan can turn on in GitHub settings.
+name: Direct push to main
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  issues: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  direct-push-to-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Open an issue for each commit that did not come from a merged pull request
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: node .github/scripts/direct-push.mjs

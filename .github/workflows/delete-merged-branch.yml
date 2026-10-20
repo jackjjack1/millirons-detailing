@@ -1,0 +1,37 @@
+# After a pull request merges, delete its head branch when that branch
+# lives in this repository and is not main. GITHUB_TOKEN only.
+# GitHub's "Automatically delete head branches" setting does the same job
+# if Jordan turns it on.
+name: Delete merged branch
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  delete-merged-branch:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Delete the head branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          THIS_REPO: ${{ github.repository }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          MERGED: ${{ github.event.pull_request.merged }}
+        run: node .github/scripts/delete-merged-branch.mjs
