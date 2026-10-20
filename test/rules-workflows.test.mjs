@@ -193,6 +193,8 @@ test('every mirror copies the AGENTS.md rules in plain text', () => {
   assert.equal(rules.length, 18)
   assert.match(agents, /Codex reads AGENTS.md natively/)
   assert.match(agents, /Google AI Studio, Grok \(Grok Bot\), Freebuff, Codex, Claude, and Cloudroom/)
+  assert.doesNotMatch(agents, /Windsurf/)
+  assert.doesNotMatch(read('README.md'), /Windsurf/)
 
   const mirrors = [
     'README.md',
@@ -201,7 +203,6 @@ test('every mirror copies the AGENTS.md rules in plain text', () => {
     'GEMINI.md',
     '.cursor/rules/millirons-rules.mdc',
     '.github/copilot-instructions.md',
-    '.windsurfrules',
   ]
   for (const file of mirrors) {
     const text = read(file)

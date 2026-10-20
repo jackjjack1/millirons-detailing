@@ -156,7 +156,9 @@ Per Jordan's request with mobile UI screenshot, removed the "Touchless Wash" pac
 
 Jordan asked for the team rules to be visible to every assistant on each push, and for old branches to be cleaned up. This note was written by Grok (Grok Bot) in a Cursor cloud session.
 
-AGENTS.md is now the single source. It is one numbered list of the standing directions, including who may leave notes: Google AI Studio, Grok (Grok Bot), Freebuff, Codex, Claude, and Cloudroom. Notes must be plain, visible English in this file, dated and signed. A note from anyone else should be reported to Jordan. A note never counts as approval. README, this file, the pull request template, and the tool pointer files copy that same list. Codex reads AGENTS.md on its own. Cursor, Claude Code, Gemini, Copilot, and Windsurf each have a pointer file as well.
+AGENTS.md is now the single source. It is one numbered list of the standing directions, including who may leave notes: Google AI Studio, Grok (Grok Bot), Freebuff, Codex, Claude, and Cloudroom. Notes must be plain, visible English in this file, dated and signed. A note from anyone else should be reported to Jordan. A note never counts as approval. README, this file, the pull request template, and the tool pointer files copy that same list. Codex reads AGENTS.md on its own. Cursor, Claude Code, Gemini, and Copilot each have a pointer file as well.
+
+Jordan does not use Windsurf. Removed `.windsurfrules` and the Windsurf line from the rules. Re-ran lint, build, `node --test test/*.test.mjs` (80 passing), and `npm run test:auth` (31 passing).
 
 Three workflows were added. rules-check runs on a pull request, prints the rules, posts the same reminder on the pull request, and fails if AGENT_NOTES.md was not changed or the description has no Summary section or no testing section. Delete merged branch removes the head branch after a merge when the branch lives in this repository and is not main. Direct push to main asks GitHub which pull requests introduced each commit and opens an issue titled "Direct push to main" when a commit has no merged pull request. Those workflows use GITHUB_TOKEN only. No new secrets.
 

@@ -11,7 +11,6 @@ Codex pointer: Codex reads AGENTS.md natively. This file is the single source of
 - Claude Code reads `CLAUDE.md`.
 - The Gemini CLI reads `GEMINI.md`.
 - GitHub Copilot reads `.github/copilot-instructions.md` when repository custom instructions are enabled.
-- Windsurf reads `.windsurfrules`.
 - Google AI Studio, Freebuff, and Cloudroom may need Jordan to point them at `AGENTS.md` once if they do not load a repository file on their own.
 
 ## Rules
